@@ -162,6 +162,19 @@ def make_move(start_row, start_col, end_row, end_col):
     turn = 'b' if turn == 'w' else 'w'
     check_game_state()
 
+def get_random_move():
+    moves = []
+    for row in range(8):
+        for col in range(8):
+            if board[row][col][0] == turn:
+                for end_row in range(8):
+                    for end_col in range(8):
+                        if is_valid_move(row, col, end_row, end_col):
+                            moves.append((row, col, end_row, end_col))
+    if moves:
+        return random.choice(moves)
+    return None
+
 def is_king_in_check(board, king_color):
     # Find king position
     king_pos = None
