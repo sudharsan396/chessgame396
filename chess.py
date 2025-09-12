@@ -5,8 +5,17 @@ import random
 # Initialize Pygame
 pygame.init()
 
-# Constants
-WIDTH, HEIGHT = 800, 800
+# Get screen size for mobile compatibility
+info = pygame.display.Info()
+screen_width = info.current_w
+screen_height = info.current_h
+
+# Adjust board size based on screen
+if screen_width < 800 or screen_height < 800:
+    WIDTH, HEIGHT = min(600, screen_width - 20), min(600, screen_height - 20)
+else:
+    WIDTH, HEIGHT = 800, 800
+
 SQUARE_SIZE = WIDTH // 8
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -21,7 +30,10 @@ piece_files = {
 }
 for piece, file in piece_files.items():
     try:
-        images[piece] = pygame.image.load(file)
+        img = pygame.image.load(file)
+        # Scale image to fit square (leave some margin)
+        scaled_size = int(SQUARE_SIZE * 0.8)
+        images[piece] = pygame.transform.scale(img, (scaled_size, scaled_size))
     except:
         print(f"Could not load {file}")
 
@@ -63,9 +75,13 @@ def draw_pieces():
         for col in range(8):
             piece = board[row][col]
             if piece != '--' and piece in images:
-                screen.blit(images[piece], (col * SQUARE_SIZE + 18, row * SQUARE_SIZE + 18))
+                img = images[piece]
+                # Center the image in the square
+                x = col * SQUARE_SIZE + (SQUARE_SIZE - img.get_width()) // 2
+                y = row * SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
+                screen.blit(img, (x, y))
 
-def get_square_from_mouse(pos):
+def get_square_from_pos(pos):
     x, y = pos
     col = x // SQUARE_SIZE
     row = y // SQUARE_SIZE
@@ -133,8 +149,13 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN and turn == 'w':
-                row, col = get_square_from_mouse(event.pos)
+            elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
+                if event.type == pygame.FINGERDOWN:
+                    # Convert finger position to screen coordinates
+                    pos = (event.x * WIDTH, event.y * HEIGHT)
+                else:
+                    pos = event.pos
+                row, col = get_square_from_pos(pos)
                 if selected_square is None:
                     if board[row][col][0] == 'w':
                         selected_square = (row, col)
