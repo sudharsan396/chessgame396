@@ -76,6 +76,17 @@ def draw_board():
             color = LIGHT_BROWN if (row + col) % 2 == 0 else DARK_BROWN
             pygame.draw.rect(screen, color, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
 
+def draw_pieces():
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece != '--' and piece in images:
+                img = images[piece]
+                # Center the image in the square
+                x = col * SQUARE_SIZE + (SQUARE_SIZE - img.get_width()) // 2
+                y = row * SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
+                screen.blit(img, (x, y))
+
 def draw_win_screen():
     # Semi-transparent overlay
     overlay = pygame.Surface((WIDTH, HEIGHT))
