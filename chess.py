@@ -331,26 +331,41 @@ def reset_game():
         ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
     ]
 def draw_win_screen():
-    # Semi-transparent overlay
+    # Create a more visible overlay with gradient effect
     overlay = pygame.Surface((WIDTH, HEIGHT))
-    overlay.set_alpha(200)  # Made more opaque
+    overlay.set_alpha(220)  # Even more opaque
     overlay.fill((0, 0, 0))
     screen.blit(overlay, (0, 0))
+
+    # Add a subtle gradient background
+    for i in range(HEIGHT):
+        alpha = int(150 * (1 - abs(i - HEIGHT//2) / (HEIGHT//2)))
+        gradient_color = (0, 0, 0, min(255, alpha))
+        pygame.draw.line(screen, gradient_color, (0, i), (WIDTH, i))
 
     if game_state == 'white_wins':
         message = "🎉 CONGRATULATIONS! 🎉"
         sub_message = "You Won the Game!"
         color = (0, 255, 0)
+        border_color = (0, 200, 0)
     elif game_state == 'black_wins':
         message = "😔 COMPUTER WINS! 😔"
         sub_message = "Better luck next time!"
         color = (255, 0, 0)
+        border_color = (200, 0, 0)
     else:
         message = "🤝 IT'S A DRAW! 🤝"
         sub_message = "Well played!"
         color = (255, 255, 0)
+        border_color = (200, 200, 0)
 
-    # Main message
+    # Main message with shadow effect
+    # Shadow
+    shadow_text = font.render(message, True, (0, 0, 0))
+    shadow_rect = shadow_text.get_rect(center=(WIDTH//2 + 2, HEIGHT//2 - 58))
+    screen.blit(shadow_text, shadow_rect)
+
+    # Main text
     text = font.render(message, True, color)
     text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2 - 60))
     screen.blit(text, text_rect)
@@ -360,13 +375,29 @@ def draw_win_screen():
     sub_rect = sub_text.get_rect(center=(WIDTH//2, HEIGHT//2 - 20))
     screen.blit(sub_text, sub_rect)
 
-    # Restart instructions
-    restart_text = small_font.render("Tap anywhere to play again", True, (200, 200, 200))
+    # Restart instructions with better visibility
+    restart_text = small_font.render("Tap anywhere to play again", True, (220, 220, 220))
     restart_rect = restart_text.get_rect(center=(WIDTH//2, HEIGHT//2 + 40))
     screen.blit(restart_text, restart_rect)
 
-    # Add a border around the message
-    pygame.draw.rect(screen, color, (WIDTH//2 - 200, HEIGHT//2 - 100, 400, 150), 3)
+    # Add a prominent border around the message area
+    box_width = 450
+    box_height = 180
+    box_x = WIDTH//2 - box_width//2
+    box_y = HEIGHT//2 - box_height//2
+
+    # Outer glow effect
+    for i in range(3):
+        glow_color = (border_color[0]//2, border_color[1]//2, border_color[2]//2)
+        pygame.draw.rect(screen, glow_color, (box_x - i, box_y - i, box_width + 2*i, box_height + 2*i), 1)
+
+    # Main border
+    pygame.draw.rect(screen, border_color, (box_x, box_y, box_width, box_height), 4)
+
+    # Inner highlight
+    pygame.draw.rect(screen, (255, 255, 255), (box_x + 2, box_y + 2, box_width - 4, box_height - 4), 1)
+
+    print(f"WIN SCREEN: Drawing {message} with state {game_state}")
 
 def main():
     global selected_square, turn, game_over
@@ -383,7 +414,14 @@ def main():
                     game_state = 'white_wins'
                     winner = 'White'
                     game_over = True
-                    print("Debug: Forced white win!")
+                    print("FORCED WIN: White wins activated!")
+                # Debug: Force loss with 'L' key
+                elif event.key == pygame.K_l:
+                    global game_state, winner, game_over
+                    game_state = 'black_wins'
+                    winner = 'Black'
+                    game_over = True
+                    print("FORCED LOSS: Black wins activated!")
             elif game_over:
                 # Handle restart on any click/tap
                 if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
@@ -414,9 +452,16 @@ def main():
         draw_board()
         draw_pieces()
 
+        # Draw winning screen on top of everything
         if game_over:
-            print(f"Debug: Game over detected! State: {game_state}, Winner: {winner}")
+            print(f"Game Over Screen: State={game_state}, Winner={winner}, game_over={game_over}")
+            # Add a simple visual indicator
+            pygame.draw.circle(screen, (255, 255, 0), (WIDTH-50, 50), 20)
+            pygame.draw.circle(screen, (255, 0, 0), (WIDTH-50, 50), 15)
+            pygame.draw.circle(screen, (0, 255, 0), (WIDTH-50, 50), 10)
             draw_win_screen()
+            # Force a redraw to make sure it's visible
+            pygame.display.update()
 
         pygame.display.flip()
         clock.tick(60)
