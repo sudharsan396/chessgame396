@@ -422,6 +422,24 @@ def main():
                     winner = 'Black'
                     game_over = True
                     print("FORCED LOSS: Black wins activated!")
+                # Debug: Force checkmate test with 'C' key
+                elif event.key == pygame.K_c:
+                    # Put black king in check with no escape
+                    board[0][4] = 'bK'  # Black king at a8
+                    board[1][4] = 'wQ'  # White queen at a7
+                    board[2][4] = 'wR'  # White rook at a6
+                    print("FORCED CHECKMATE: Black king in checkmate position!")
+                    check_game_state()
+                # Debug: Show current game status with 'S' key
+                elif event.key == pygame.K_s:
+                    white_check = is_king_in_check(board, 'w')
+                    black_check = is_king_in_check(board, 'b')
+                    white_moves = has_legal_moves(board, 'w')
+                    black_moves = has_legal_moves(board, 'b')
+                    print(f"STATUS: Turn={turn}, GameOver={game_over}")
+                    print(f"STATUS: White check={white_check}, moves={white_moves}")
+                    print(f"STATUS: Black check={black_check}, moves={black_moves}")
+                    print(f"STATUS: Game state={game_state}, Winner={winner}")
             elif game_over:
                 # Handle restart on any click/tap
                 if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
@@ -456,9 +474,13 @@ def main():
         if game_over:
             print(f"Game Over Screen: State={game_state}, Winner={winner}, game_over={game_over}")
             # Add a simple visual indicator
-            pygame.draw.circle(screen, (255, 255, 0), (WIDTH-50, 50), 20)
-            pygame.draw.circle(screen, (255, 0, 0), (WIDTH-50, 50), 15)
-            pygame.draw.circle(screen, (0, 255, 0), (WIDTH-50, 50), 10)
+            pygame.draw.circle(screen, (255, 255, 0), (WIDTH-50, 50), 20)  # Yellow background
+            pygame.draw.circle(screen, (255, 0, 0), (WIDTH-50, 50), 15)    # Red middle
+            pygame.draw.circle(screen, (0, 255, 0), (WIDTH-50, 50), 10)    # Green center
+            # Add text indicator
+            status_font = pygame.font.SysFont('Arial', 16)
+            status_text = status_font.render("GAME OVER", True, (255, 255, 255))
+            screen.blit(status_text, (WIDTH-100, 80))
             draw_win_screen()
             # Force a redraw to make sure it's visible
             pygame.display.update()
