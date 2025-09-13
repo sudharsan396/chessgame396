@@ -2,18 +2,26 @@ import pygame
 import sys
 import random
 
-# Initialize Pygame
-pygame.init()
+# Initialize Pygame - Pydroid3 compatible
+try:
+    pygame.init()
+    print("Pydroid3: Pygame initialized successfully")
+except Exception as e:
+    print(f"Pydroid3: Pygame init error: {e}")
+    raise
 
-# Get screen size for mobile compatibility
+# Get screen size for mobile compatibility - Pydroid3 safe
 try:
     info = pygame.display.Info()
-    screen_width = int(info.current_w) if hasattr(info, 'current_w') and info.current_w else 800
-    screen_height = int(info.current_h) if hasattr(info, 'current_h') and info.current_h else 600
-except:
-    # Fallback for mobile/Pydroid3 compatibility
-    screen_width = 800
-    screen_height = 600
+    screen_width = int(info.current_w) if hasattr(info, 'current_w') and info.current_w and info.current_w > 0 else 640
+    screen_height = int(info.current_h) if hasattr(info, 'current_h') and info.current_h and info.current_h > 0 else 640
+except Exception as e:
+    print(f"Pydroid3: pygame.display.Info() failed: {e}")
+    # Pydroid3 safe fallback
+    screen_width = 640
+    screen_height = 640
+
+print(f"Pydroid3: Detected screen size: {screen_width}x{screen_height}")
 
 # For mobile devices, try to get the actual display size
 try:
@@ -80,20 +88,26 @@ title_font = pygame.font.SysFont('Arial', max(20, int(SQUARE_SIZE * 0.4)), bold=
 font = pygame.font.SysFont('Arial', max(24, int(SQUARE_SIZE * 0.5)))  # Larger for mobile
 small_font = pygame.font.SysFont('Arial', max(18, int(SQUARE_SIZE * 0.35)))  # Larger for mobile
 
-# Piece images
+# Piece images - Pydroid3 compatible
 images = {}
 piece_files = {
     'wP': 'wP.png', 'wR': 'wR.png', 'wN': 'wN.png', 'wB': 'wB.png', 'wQ': 'wQ.png', 'wK': 'wK.png',
     'bP': 'bP.png', 'bR': 'bR.png', 'bN': 'bN.png', 'bB': 'bB.png', 'bQ': 'bQ.png', 'bK': 'bK.png'
 }
+
 for piece, file in piece_files.items():
     try:
         img = pygame.image.load(file)
         # Scale image to fit square (leave some margin)
         scaled_size = int(SQUARE_SIZE * 0.8)
         images[piece] = pygame.transform.scale(img, (scaled_size, scaled_size))
-    except:
-        print(f"Could not load {file}")
+        print(f"Pydroid3: Loaded {file}")
+    except Exception as e:
+        print(f"Pydroid3: Could not load {file}: {e}")
+        # Create a simple colored rectangle as fallback
+        fallback_img = pygame.Surface((int(SQUARE_SIZE * 0.8), int(SQUARE_SIZE * 0.8)))
+        fallback_img.fill((200, 200, 200))  # Light gray
+        images[piece] = fallback_img
 
 # Board representation
 board = [
@@ -124,27 +138,28 @@ game_state = 'playing'  # 'playing', 'white_wins', 'black_wins', 'draw'
 font = pygame.font.SysFont('Arial', max(24, int(SQUARE_SIZE * 0.5)))
 small_font = pygame.font.SysFont('Arial', max(18, int(SQUARE_SIZE * 0.35)))
 
-# Screen initialization with mobile optimizations
+# Screen initialization with mobile optimizations - Pydroid3 compatible
 try:
-    # Try fullscreen for mobile devices
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+    # For Pydroid3, use windowed mode instead of fullscreen
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption('Chess Master - Mobile')
-    print(f"Mobile fullscreen initialized: {WIDTH}x{HEIGHT}")
+    print(f"Pydroid3 windowed mode initialized: {WIDTH}x{HEIGHT}")
 except Exception as e:
-    print(f"Fullscreen failed, trying windowed: {e}")
+    print(f"Pydroid3 initialization failed: {e}")
+    # Emergency fallback for Pydroid3
     try:
-        # Fallback to windowed mode
-        screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption('Chess Master')
-        print(f"Windowed mode initialized: {WIDTH}x{HEIGHT}")
-    except Exception as e:
-        print(f"Windowed mode failed: {e}")
-        # Emergency fallback
-        WIDTH = 800
-        HEIGHT = 600
+        WIDTH = 640
+        HEIGHT = 640
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption('Chess')
-        print(f"Emergency fallback: {WIDTH}x{HEIGHT}")
+        print(f"Pydroid3 emergency fallback: {WIDTH}x{HEIGHT}")
+    except Exception as e2:
+        print(f"Pydroid3 emergency fallback failed: {e2}")
+        # Last resort - minimal mode
+        screen = pygame.display.set_mode((400, 400))
+        WIDTH, HEIGHT = 400, 400
+        pygame.display.set_caption('Chess')
+        print("Pydroid3 minimal mode: 400x400")
 
 def draw_board():
     # Calculate centered board position
@@ -247,15 +262,50 @@ def draw_pieces():
     board_x = (WIDTH - board_size) // 2  # Center horizontally
     board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
 
+    # Check if we have any images loaded
+    has_images = any(piece in images and images[piece] is not None for piece in board if piece != '--')
+
+    if has_images:
+        # Use image-based pieces
+        for row in range(8):
+            for col in range(8):
+                piece = board[row][col]
+                if piece != '--' and piece in images and images[piece] is not None:
+                    img = images[piece]
+                    # Position pieces within the centered board
+                    x = col * SQUARE_SIZE + board_x + (SQUARE_SIZE - img.get_width()) // 2
+                    y = row * SQUARE_SIZE + board_y + (SQUARE_SIZE - img.get_height()) // 2
+                    screen.blit(img, (x, y))
+    else:
+        # Use text-based fallback
+        print("Pydroid3: Using text-based piece display")
+        draw_pieces_text_fallback()
+
+def draw_pieces_text_fallback():
+    """Text-based fallback for pieces when images fail to load"""
+    # Calculate centered board position (same as in draw_board)
+    board_size = SQUARE_SIZE * 8
+    board_x = (WIDTH - board_size) // 2  # Center horizontally
+    board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
+
+    piece_symbols = {
+        'wP': '♙', 'wR': '♖', 'wN': '♘', 'wB': '♗', 'wQ': '♕', 'wK': '♔',
+        'bP': '♟', 'bR': '♜', 'bN': '♞', 'bB': '♝', 'bQ': '♛', 'bK': '♚'
+    }
+
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
-            if piece != '--' and piece in images:
-                img = images[piece]
-                # Position pieces within the centered board
-                x = col * SQUARE_SIZE + board_x + (SQUARE_SIZE - img.get_width()) // 2
-                y = row * SQUARE_SIZE + board_y + (SQUARE_SIZE - img.get_height()) // 2
-                screen.blit(img, (x, y))
+            if piece != '--':
+                # Position for text piece
+                x = col * SQUARE_SIZE + board_x + SQUARE_SIZE//2
+                y = row * SQUARE_SIZE + board_y + SQUARE_SIZE//2
+
+                # Draw text symbol
+                symbol = piece_symbols.get(piece, '?')
+                text = font.render(symbol, True, (0, 0, 0) if piece[0] == 'w' else (255, 255, 255))
+                text_rect = text.get_rect(center=(x, y))
+                screen.blit(text, text_rect)
 
 def draw_check_indicator():
     """Draw a red border around the king if it's in check"""
@@ -750,27 +800,37 @@ def main():
                     else:
                         reset_game()
             elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
-                if event.type == pygame.FINGERDOWN:
-                    # Convert normalized finger position to screen coordinates
-                    pos = (int(event.x * WIDTH), int(event.y * HEIGHT))
-                else:
-                    pos = event.pos
-                row, col = get_square_from_pos(pos)
-                if selected_square is None:
-                    if board[row][col][0] == 'w':
-                        selected_square = (row, col)
-                else:
-                    start_row, start_col = selected_square
-                    if is_valid_move(start_row, start_col, row, col):
-                        make_move(start_row, start_col, row, col)
-                        selected_square = None
-                        # Computer's turn
-                        if not game_over:  # Only computer moves if game not over
-                            move = get_random_move()
-                            if move:
-                                make_move(*move)
+                try:
+                    if event.type == pygame.FINGERDOWN:
+                        # Convert normalized finger position to screen coordinates - Pydroid3 safe
+                        if hasattr(event, 'x') and hasattr(event, 'y'):
+                            pos = (int(float(event.x) * WIDTH), int(float(event.y) * HEIGHT))
+                        else:
+                            # Fallback if finger event doesn't have x,y attributes
+                            pos = (WIDTH//2, HEIGHT//2)
                     else:
-                        selected_square = None
+                        pos = event.pos
+
+                    row, col = get_square_from_pos(pos)
+                    if row >= 0 and col >= 0:  # Valid position
+                        if selected_square is None:
+                            if row < 8 and col < 8 and board[row][col][0] == 'w':
+                                selected_square = (row, col)
+                        else:
+                            start_row, start_col = selected_square
+                            if is_valid_move(start_row, start_col, row, col):
+                                make_move(start_row, start_col, row, col)
+                                selected_square = None
+                                # Computer's turn
+                                if not game_over:  # Only computer moves if game not over
+                                    move = get_random_move()
+                                    if move:
+                                        make_move(*move)
+                            else:
+                                selected_square = None
+                except Exception as e:
+                    print(f"Pydroid3: Touch event error: {e}")
+                    selected_square = None
 
         draw_board()
         draw_pieces()
