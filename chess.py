@@ -263,7 +263,7 @@ def draw_pieces():
     board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
 
     # Check if we have any images loaded
-    has_images = any(piece in images and images[piece] is not None for piece in board if piece != '--')
+    has_images = any(images.get(piece) is not None for row in board for piece in row if piece != '--')
 
     if has_images:
         # Use image-based pieces
