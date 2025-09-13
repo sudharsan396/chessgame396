@@ -184,6 +184,36 @@ def draw_pieces():
                 y = row * SQUARE_SIZE + SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
                 screen.blit(img, (x, y))
 
+def draw_check_indicator():
+    """Draw a red border around the king if it's in check"""
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece != '--' and piece[1] == 'K':  # Found a king
+                king_color = piece[0]
+                if is_king_in_check(board, king_color):
+                    # Draw red border around the king
+                    x = col * SQUARE_SIZE + SQUARE_SIZE
+                    y = row * SQUARE_SIZE + SQUARE_SIZE
+
+                    # Draw red rectangle around the square
+                    red_border = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE))
+                    red_border.set_alpha(150)  # Semi-transparent
+                    red_border.fill((255, 0, 0))  # Red color
+
+                    # Create a border effect by drawing a thinner inner rectangle
+                    inner_size = SQUARE_SIZE - 8
+                    inner_x = (SQUARE_SIZE - inner_size) // 2
+                    inner_y = (SQUARE_SIZE - inner_size) // 2
+
+                    # Draw the red border
+                    pygame.draw.rect(screen, (255, 0, 0), (x, y, SQUARE_SIZE, SQUARE_SIZE), 4)
+
+                    # Add a pulsing effect with alternating border thickness
+                    import time
+                    if int(time.time() * 2) % 2 == 0:
+                        pygame.draw.rect(screen, (255, 100, 100), (x+2, y+2, SQUARE_SIZE-4, SQUARE_SIZE-4), 2)
+
 def get_square_from_pos(pos):
     x, y = pos
     # Adjust for board offset (border)
@@ -497,8 +527,8 @@ def main():
                     # Simple check test: place queen next to king
                     board[0][4] = 'bK'  # Black king at e8
                     board[0][3] = 'wQ'  # White queen at d8 (adjacent to king)
-                    print("CHECK TEST: Queen adjacent to king - should detect check!")
-                    check_game_state()
+                    print("CHECK TEST: Queen adjacent to king - should show red border!")
+                    # Don't call check_game_state() here as we just want to test the visual
             elif game_over:
                 # Handle restart on any click/tap
                 if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
@@ -528,6 +558,7 @@ def main():
 
         draw_board()
         draw_pieces()
+        draw_check_indicator()
 
         # Draw winning screen on top of everything
         if game_over:
