@@ -196,38 +196,100 @@ def get_square_from_pos(pos):
     return row, col
 
 def is_valid_move(start_row, start_col, end_row, end_col):
+    if start_row == end_row and start_col == end_col:
+        return False
+
     piece = board[start_row][start_col]
     if piece == '--':
         return False
-    if board[end_row][end_col][0] == piece[0]:  # Same color
+
+    target_piece = board[end_row][end_col]
+    if target_piece != '--' and target_piece[0] == piece[0]:  # Same color
         return False
-    # Basic movement checks (simplified)
-    if piece[1] == 'P':
-        direction = -1 if piece[0] == 'w' else 1
-        if start_col == end_col:
-            if board[end_row][end_col] == '--':
+
+    piece_type = piece[1]
+    color = piece[0]
+
+    # Pawn movement
+    if piece_type == 'P':
+        direction = -1 if color == 'w' else 1
+        if start_col == end_col:  # Forward move
+            if target_piece == '--':  # Must be empty
                 if end_row == start_row + direction:
                     return True
-                elif end_row == start_row + 2 * direction and start_row == (6 if piece[0] == 'w' else 1):
-                    return True
+                elif end_row == start_row + 2 * direction and start_row == (6 if color == 'w' else 1):
+                    # Check if path is clear for double move
+                    return board[start_row + direction][start_col] == '--'
         elif abs(start_col - end_col) == 1 and end_row == start_row + direction:
-            if board[end_row][end_col] != '--':
-                return True
-    elif piece[1] == 'R':
-        if start_row == end_row or start_col == end_col:
+            # Diagonal capture
+            return target_piece != '--' and target_piece[0] != color
+
+    # Rook movement
+    elif piece_type == 'R':
+        if start_row == end_row:  # Horizontal move
+            step = 1 if end_col > start_col else -1
+            for col in range(start_col + step, end_col, step):
+                if board[start_row][col] != '--':
+                    return False
             return True
-    elif piece[1] == 'N':
-        if (abs(start_row - end_row) == 2 and abs(start_col - end_col) == 1) or (abs(start_row - end_row) == 1 and abs(start_col - end_col) == 2):
+        elif start_col == end_col:  # Vertical move
+            step = 1 if end_row > start_row else -1
+            for row in range(start_row + step, end_row, step):
+                if board[row][start_col] != '--':
+                    return False
             return True
-    elif piece[1] == 'B':
+
+    # Bishop movement
+    elif piece_type == 'B':
         if abs(start_row - end_row) == abs(start_col - end_col):
+            row_step = 1 if end_row > start_row else -1
+            col_step = 1 if end_col > start_col else -1
+            row, col = start_row + row_step, start_col + col_step
+            while row != end_row:
+                if board[row][col] != '--':
+                    return False
+                row += row_step
+                col += col_step
             return True
-    elif piece[1] == 'Q':
-        if start_row == end_row or start_col == end_col or abs(start_row - end_row) == abs(start_col - end_col):
+
+    # Queen movement (combination of rook and bishop)
+    elif piece_type == 'Q':
+        # Check if it's a valid rook move
+        if start_row == end_row or start_col == end_col:
+            if start_row == end_row:  # Horizontal
+                step = 1 if end_col > start_col else -1
+                for col in range(start_col + step, end_col, step):
+                    if board[start_row][col] != '--':
+                        return False
+            else:  # Vertical
+                step = 1 if end_row > start_row else -1
+                for row in range(start_row + step, end_row, step):
+                    if board[row][start_col] != '--':
+                        return False
             return True
-    elif piece[1] == 'K':
+        # Check if it's a valid bishop move
+        elif abs(start_row - end_row) == abs(start_col - end_col):
+            row_step = 1 if end_row > start_row else -1
+            col_step = 1 if end_col > start_col else -1
+            row, col = start_row + row_step, start_col + col_step
+            while row != end_row:
+                if board[row][col] != '--':
+                    return False
+                row += row_step
+                col += col_step
+            return True
+
+    # Knight movement
+    elif piece_type == 'N':
+        if (abs(start_row - end_row) == 2 and abs(start_col - end_col) == 1) or \
+           (abs(start_row - end_row) == 1 and abs(start_col - end_col) == 2):
+            return True
+
+    # King movement
+    elif piece_type == 'K':
         if abs(start_row - end_row) <= 1 and abs(start_col - end_col) <= 1:
             return True
+
     return False
 
 def make_move(start_row, start_col, end_row, end_col):
@@ -430,16 +492,13 @@ def main():
                     board[2][4] = 'wR'  # White rook at a6
                     print("FORCED CHECKMATE: Black king in checkmate position!")
                     check_game_state()
-                # Debug: Show current game status with 'S' key
-                elif event.key == pygame.K_s:
-                    white_check = is_king_in_check(board, 'w')
-                    black_check = is_king_in_check(board, 'b')
-                    white_moves = has_legal_moves(board, 'w')
-                    black_moves = has_legal_moves(board, 'b')
-                    print(f"STATUS: Turn={turn}, GameOver={game_over}")
-                    print(f"STATUS: White check={white_check}, moves={white_moves}")
-                    print(f"STATUS: Black check={black_check}, moves={black_moves}")
-                    print(f"STATUS: Game state={game_state}, Winner={winner}")
+                # Debug: Test check detection with 'T' key
+                elif event.key == pygame.K_t:
+                    # Simple check test: place queen next to king
+                    board[0][4] = 'bK'  # Black king at e8
+                    board[0][3] = 'wQ'  # White queen at d8 (adjacent to king)
+                    print("CHECK TEST: Queen adjacent to king - should detect check!")
+                    check_game_state()
             elif game_over:
                 # Handle restart on any click/tap
                 if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
