@@ -6,18 +6,64 @@ import random
 pygame.init()
 
 # Get screen size for mobile compatibility
-info = pygame.display.Info()
-screen_width = info.current_w
-screen_height = info.current_h
+try:
+    info = pygame.display.Info()
+    screen_width = int(info.current_w) if hasattr(info, 'current_w') and info.current_w else 800
+    screen_height = int(info.current_h) if hasattr(info, 'current_h') and info.current_h else 600
+except:
+    # Fallback for mobile/Pydroid3 compatibility
+    screen_width = 800
+    screen_height = 600
 
-# Adjust board size based on screen with extra space for borders and title
-if screen_width < 900 or screen_height < 900:
-    SQUARE_SIZE = min(50, (screen_width - 100) // 8, (screen_height - 150) // 8)
-else:
-    SQUARE_SIZE = 60
+# For mobile devices, try to get the actual display size
+try:
+    import os
+    if os.name == 'posix':  # Likely Android/iOS
+        # Try to get display metrics for mobile
+        try:
+            # For Pydroid3/Android, try to get screen size from environment
+            screen_width = int(os.environ.get('DISPLAY_WIDTH', screen_width))
+            screen_height = int(os.environ.get('DISPLAY_HEIGHT', screen_height))
+        except:
+            pass
+except:
+    pass
 
-WIDTH = SQUARE_SIZE * 8 + SQUARE_SIZE * 2  # Extra space for borders
-HEIGHT = SQUARE_SIZE * 8 + SQUARE_SIZE * 2 + SQUARE_SIZE  # Extra space for title
+# Ensure minimum screen size for mobile - increased for better visibility
+screen_width = max(screen_width, 600)  # Increased from 400
+screen_height = max(screen_height, 600)  # Increased from 400
+
+# For mobile, use full screen mode to maximize board size
+try:
+    # Try fullscreen mode first for mobile
+    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    screen_width, screen_height = screen.get_size()
+    print(f"Fullscreen mode: {screen_width}x{screen_height}")
+except:
+    # Fallback to windowed mode
+    pass
+
+# Adjust board size to maximize screen usage
+# Use more aggressive sizing for mobile
+available_width = screen_width - 40  # Less border space
+available_height = screen_height - 80  # Less space for title
+
+# Calculate optimal square size
+max_square_from_width = available_width // 8
+max_square_from_height = available_height // 8
+SQUARE_SIZE = min(max_square_from_width, max_square_from_height)
+
+# Ensure minimum and maximum sizes
+SQUARE_SIZE = max(40, min(SQUARE_SIZE, 80))  # Min 40, Max 80 for mobile
+
+# Ensure SQUARE_SIZE is an integer
+SQUARE_SIZE = int(SQUARE_SIZE)
+
+# Calculate final dimensions
+WIDTH = SQUARE_SIZE * 8 + 40  # Minimal border space
+HEIGHT = SQUARE_SIZE * 8 + 60  # Space for title
+
+print(f"Mobile optimized: Screen {screen_width}x{screen_height}, Board {WIDTH}x{HEIGHT}, Square {SQUARE_SIZE}")
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 # Enhanced colors for beautiful board
@@ -28,11 +74,11 @@ HIGHLIGHT_COLOR = (255, 215, 0)  # Gold for highlights
 SHADOW_COLOR = (0, 0, 0, 50)   # Semi-transparent black
 TEXT_COLOR = (75, 54, 33)      # Dark brown for text
 
-# Fonts for coordinates and title
-coord_font = pygame.font.SysFont('Arial', max(12, int(SQUARE_SIZE * 0.25)))
-title_font = pygame.font.SysFont('Arial', max(16, int(SQUARE_SIZE * 0.35)), bold=True)
-font = pygame.font.SysFont('Arial', max(20, int(SQUARE_SIZE * 0.4)))
-small_font = pygame.font.SysFont('Arial', max(14, int(SQUARE_SIZE * 0.3)))
+# Fonts for coordinates and title - optimized for mobile
+coord_font = pygame.font.SysFont('Arial', max(16, int(SQUARE_SIZE * 0.3)))  # Larger for mobile
+title_font = pygame.font.SysFont('Arial', max(20, int(SQUARE_SIZE * 0.4)), bold=True)  # Larger for mobile
+font = pygame.font.SysFont('Arial', max(24, int(SQUARE_SIZE * 0.5)))  # Larger for mobile
+small_font = pygame.font.SysFont('Arial', max(18, int(SQUARE_SIZE * 0.35)))  # Larger for mobile
 
 # Piece images
 images = {}
@@ -74,39 +120,61 @@ game_over = False
 winner = None
 game_state = 'playing'  # 'playing', 'white_wins', 'black_wins', 'draw'
 
-# Fonts
-font = pygame.font.SysFont('Arial', 32)
-small_font = pygame.font.SysFont('Arial', 24)
+# Fonts - mobile optimized
+font = pygame.font.SysFont('Arial', max(24, int(SQUARE_SIZE * 0.5)))
+small_font = pygame.font.SysFont('Arial', max(18, int(SQUARE_SIZE * 0.35)))
 
-# Screen
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Chess')
+# Screen initialization with mobile optimizations
+try:
+    # Try fullscreen for mobile devices
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+    pygame.display.set_caption('Chess Master - Mobile')
+    print(f"Mobile fullscreen initialized: {WIDTH}x{HEIGHT}")
+except Exception as e:
+    print(f"Fullscreen failed, trying windowed: {e}")
+    try:
+        # Fallback to windowed mode
+        screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.display.set_caption('Chess Master')
+        print(f"Windowed mode initialized: {WIDTH}x{HEIGHT}")
+    except Exception as e:
+        print(f"Windowed mode failed: {e}")
+        # Emergency fallback
+        WIDTH = 800
+        HEIGHT = 600
+        screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.display.set_caption('Chess')
+        print(f"Emergency fallback: {WIDTH}x{HEIGHT}")
 
 def draw_board():
-    # Draw outer border with shadow effect
-    border_width = int(SQUARE_SIZE * 0.1)
+    # Calculate centered board position
     board_size = SQUARE_SIZE * 8
+    board_x = (WIDTH - board_size) // 2  # Center horizontally
+    board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
 
-    # Shadow
+    # Draw outer border with minimal space for mobile
+    border_width = max(2, int(SQUARE_SIZE * 0.05))  # Smaller border for mobile
+
+    # Shadow for depth
     pygame.draw.rect(screen, (0, 0, 0, 100),
-                     (SQUARE_SIZE - border_width//2, SQUARE_SIZE - border_width//2,
+                     (board_x - border_width//2, board_y - border_width//2,
                       board_size + border_width, board_size + border_width))
 
     # Main border
     pygame.draw.rect(screen, BORDER_COLOR,
-                     (SQUARE_SIZE - border_width//2, SQUARE_SIZE - border_width//2,
+                     (board_x - border_width//2, board_y - border_width//2,
                       board_size + border_width, board_size + border_width), border_width)
 
     # Inner highlight border
     pygame.draw.rect(screen, HIGHLIGHT_COLOR,
-                     (SQUARE_SIZE - border_width//4, SQUARE_SIZE - border_width//4,
-                      board_size + border_width//2, board_size + border_width//2), 2)
+                     (board_x - border_width//4, board_y - border_width//4,
+                      board_size + border_width//2, board_size + border_width//2), 1)
 
     # Draw chess squares with enhanced colors and effects
     for row in range(8):
         for col in range(8):
-            x = col * SQUARE_SIZE + SQUARE_SIZE
-            y = row * SQUARE_SIZE + SQUARE_SIZE
+            x = col * SQUARE_SIZE + board_x
+            y = row * SQUARE_SIZE + board_y
 
             # Base color
             is_light = (row + col) % 2 == 0
@@ -140,7 +208,7 @@ def draw_board():
 
             # Add wood grain effect (subtle lines)
             if not is_light:
-                for i in range(0, SQUARE_SIZE, 4):
+                for i in range(0, SQUARE_SIZE, 6):  # Less frequent for mobile
                     alpha = 30 + (i % 20)
                     grain_color = (
                         min(255, base_color[0] + alpha),
@@ -149,52 +217,62 @@ def draw_board():
                     )
                     pygame.draw.line(screen, grain_color, (x, y + i), (x + SQUARE_SIZE, y + i), 1)
 
-    # Draw coordinate labels
+    # Draw coordinate labels with adjusted positioning
     letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     numbers = ['8', '7', '6', '5', '4', '3', '2', '1']
 
     # Bottom letters (a-h)
     for i, letter in enumerate(letters):
         text = coord_font.render(letter, True, TEXT_COLOR)
-        x = SQUARE_SIZE + i * SQUARE_SIZE + SQUARE_SIZE//2 - text.get_width()//2
-        y = SQUARE_SIZE + board_size + border_width//2
+        x = board_x + i * SQUARE_SIZE + SQUARE_SIZE//2 - text.get_width()//2
+        y = board_y + board_size + border_width//2
         screen.blit(text, (x, y))
 
     # Side numbers (8-1)
     for i, number in enumerate(numbers):
         text = coord_font.render(number, True, TEXT_COLOR)
-        x = SQUARE_SIZE - text.get_width() - border_width//2
-        y = SQUARE_SIZE + i * SQUARE_SIZE + SQUARE_SIZE//2 - text.get_height()//2
+        x = board_x - text.get_width() - border_width//2
+        y = board_y + i * SQUARE_SIZE + SQUARE_SIZE//2 - text.get_height()//2
         screen.blit(text, (x, y))
 
-    # Draw title
+    # Draw title with better mobile positioning
     title = title_font.render("CHESS MASTER", True, HIGHLIGHT_COLOR)
     title_x = WIDTH//2 - title.get_width()//2
-    title_y = SQUARE_SIZE//4
+    title_y = 10  # Higher up for mobile
     screen.blit(title, (title_x, title_y))
 
 def draw_pieces():
+    # Calculate centered board position (same as in draw_board)
+    board_size = SQUARE_SIZE * 8
+    board_x = (WIDTH - board_size) // 2  # Center horizontally
+    board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
+
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
             if piece != '--' and piece in images:
                 img = images[piece]
-                # Position pieces within the bordered board
-                x = col * SQUARE_SIZE + SQUARE_SIZE + (SQUARE_SIZE - img.get_width()) // 2
-                y = row * SQUARE_SIZE + SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
+                # Position pieces within the centered board
+                x = col * SQUARE_SIZE + board_x + (SQUARE_SIZE - img.get_width()) // 2
+                y = row * SQUARE_SIZE + board_y + (SQUARE_SIZE - img.get_height()) // 2
                 screen.blit(img, (x, y))
 
 def draw_check_indicator():
     """Draw a red border around the king if it's in check"""
+    # Calculate centered board position (same as in draw_board)
+    board_size = SQUARE_SIZE * 8
+    board_x = (WIDTH - board_size) // 2  # Center horizontally
+    board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
+
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
             if piece != '--' and piece[1] == 'K':  # Found a king
                 king_color = piece[0]
                 if is_king_in_check(board, king_color):
-                    # Draw red border around the king
-                    x = col * SQUARE_SIZE + SQUARE_SIZE
-                    y = row * SQUARE_SIZE + SQUARE_SIZE
+                    # Draw red border around the king with centered positioning
+                    x = col * SQUARE_SIZE + board_x
+                    y = row * SQUARE_SIZE + board_y
 
                     # Draw red rectangle around the square
                     red_border = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE))
@@ -215,11 +293,16 @@ def draw_check_indicator():
                         pygame.draw.rect(screen, (255, 100, 100), (x+2, y+2, SQUARE_SIZE-4, SQUARE_SIZE-4), 2)
 
 def get_square_from_pos(pos):
+    # Calculate centered board position (same as in draw_board)
+    board_size = SQUARE_SIZE * 8
+    board_x = (WIDTH - board_size) // 2  # Center horizontally
+    board_y = (HEIGHT - board_size) // 2 + 20  # Center vertically with some top space for title
+
     x, y = pos
-    # Adjust for board offset (border)
-    x -= SQUARE_SIZE
-    y -= SQUARE_SIZE
-    if x < 0 or y < 0 or x >= SQUARE_SIZE * 8 or y >= SQUARE_SIZE * 8:
+    # Adjust for centered board offset
+    x -= board_x
+    y -= board_y
+    if x < 0 or y < 0 or x >= board_size or y >= board_size:
         return -1, -1  # Invalid position
     col = x // SQUARE_SIZE
     row = y // SQUARE_SIZE
@@ -661,11 +744,15 @@ def main():
             elif game_over:
                 # Handle restart on any click/tap
                 if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
-                    reset_game()
+                    if event.type == pygame.FINGERDOWN:
+                        # Just check if finger event occurred, don't need position for restart
+                        reset_game()
+                    else:
+                        reset_game()
             elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
                 if event.type == pygame.FINGERDOWN:
-                    # Convert finger position to screen coordinates
-                    pos = (event.x * WIDTH, event.y * HEIGHT)
+                    # Convert normalized finger position to screen coordinates
+                    pos = (int(event.x * WIDTH), int(event.y * HEIGHT))
                 else:
                     pos = event.pos
                 row, col = get_square_from_pos(pos)
