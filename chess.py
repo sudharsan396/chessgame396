@@ -184,33 +184,6 @@ def draw_pieces():
                 y = row * SQUARE_SIZE + SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
                 screen.blit(img, (x, y))
 
-def draw_win_screen():
-    # Semi-transparent overlay
-    overlay = pygame.Surface((WIDTH, HEIGHT))
-    overlay.set_alpha(180)
-    overlay.fill((0, 0, 0))
-    screen.blit(overlay, (0, 0))
-
-    if game_state == 'white_wins':
-        message = "🎉 Congratulations! You Won! 🎉"
-        color = (0, 255, 0)
-    elif game_state == 'black_wins':
-        message = "😔 Computer Wins!"
-        color = (255, 0, 0)
-    else:
-        message = "🤝 It's a Draw!"
-        color = (255, 255, 0)
-
-    # Main message
-    text = font.render(message, True, color)
-    text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2 - 50))
-    screen.blit(text, text_rect)
-
-    # Restart instructions
-    restart_text = small_font.render("Tap anywhere to play again", True, (255, 255, 255))
-    restart_rect = restart_text.get_rect(center=(WIDTH//2, HEIGHT//2 + 50))
-    screen.blit(restart_text, restart_rect)
-
 def get_square_from_pos(pos):
     x, y = pos
     # Adjust for board offset (border)
@@ -325,18 +298,24 @@ def check_game_state():
     white_has_moves = has_legal_moves(board, 'w')
     black_has_moves = has_legal_moves(board, 'b')
 
+    print(f"Debug: White in check: {white_in_check}, White has moves: {white_has_moves}")
+    print(f"Debug: Black in check: {black_in_check}, Black has moves: {black_has_moves}")
+
     if not white_has_moves and white_in_check:
         game_state = 'black_wins'
         winner = 'Black'
         game_over = True
+        print("Debug: Black wins!")
     elif not black_has_moves and black_in_check:
         game_state = 'white_wins'
         winner = 'White'
         game_over = True
+        print("Debug: White wins!")
     elif not white_has_moves and not black_has_moves:
         game_state = 'draw'
         winner = None
         game_over = True
+        print("Debug: Draw!")
 
 def reset_game():
     global board, selected_square, turn, game_over, winner, game_state
@@ -354,29 +333,40 @@ def reset_game():
 def draw_win_screen():
     # Semi-transparent overlay
     overlay = pygame.Surface((WIDTH, HEIGHT))
-    overlay.set_alpha(180)
+    overlay.set_alpha(200)  # Made more opaque
     overlay.fill((0, 0, 0))
     screen.blit(overlay, (0, 0))
 
     if game_state == 'white_wins':
-        message = "🎉 Congratulations! You Won! 🎉"
+        message = "🎉 CONGRATULATIONS! 🎉"
+        sub_message = "You Won the Game!"
         color = (0, 255, 0)
     elif game_state == 'black_wins':
-        message = "😔 Computer Wins!"
+        message = "😔 COMPUTER WINS! 😔"
+        sub_message = "Better luck next time!"
         color = (255, 0, 0)
     else:
-        message = "🤝 It's a Draw!"
+        message = "🤝 IT'S A DRAW! 🤝"
+        sub_message = "Well played!"
         color = (255, 255, 0)
 
     # Main message
     text = font.render(message, True, color)
-    text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2 - 50))
+    text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2 - 60))
     screen.blit(text, text_rect)
 
+    # Sub message
+    sub_text = small_font.render(sub_message, True, (255, 255, 255))
+    sub_rect = sub_text.get_rect(center=(WIDTH//2, HEIGHT//2 - 20))
+    screen.blit(sub_text, sub_rect)
+
     # Restart instructions
-    restart_text = small_font.render("Tap anywhere to play again", True, (255, 255, 255))
-    restart_rect = restart_text.get_rect(center=(WIDTH//2, HEIGHT//2 + 50))
+    restart_text = small_font.render("Tap anywhere to play again", True, (200, 200, 200))
+    restart_rect = restart_text.get_rect(center=(WIDTH//2, HEIGHT//2 + 40))
     screen.blit(restart_text, restart_rect)
+
+    # Add a border around the message
+    pygame.draw.rect(screen, color, (WIDTH//2 - 200, HEIGHT//2 - 100, 400, 150), 3)
 
 def main():
     global selected_square, turn, game_over
@@ -386,6 +376,14 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                # Debug: Force win with 'W' key
+                if event.key == pygame.K_w:
+                    global game_state, winner, game_over
+                    game_state = 'white_wins'
+                    winner = 'White'
+                    game_over = True
+                    print("Debug: Forced white win!")
             elif game_over:
                 # Handle restart on any click/tap
                 if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
@@ -417,6 +415,7 @@ def main():
         draw_pieces()
 
         if game_over:
+            print(f"Debug: Game over detected! State: {game_state}, Winner: {winner}")
             draw_win_screen()
 
         pygame.display.flip()
