@@ -10,17 +10,29 @@ info = pygame.display.Info()
 screen_width = info.current_w
 screen_height = info.current_h
 
-# Adjust board size based on screen
-if screen_width < 800 or screen_height < 800:
-    WIDTH, HEIGHT = min(600, screen_width - 20), min(600, screen_height - 20)
+# Adjust board size based on screen with extra space for borders and title
+if screen_width < 900 or screen_height < 900:
+    SQUARE_SIZE = min(50, (screen_width - 100) // 8, (screen_height - 150) // 8)
 else:
-    WIDTH, HEIGHT = 800, 800
+    SQUARE_SIZE = 60
 
-SQUARE_SIZE = WIDTH // 8
+WIDTH = SQUARE_SIZE * 8 + SQUARE_SIZE * 2  # Extra space for borders
+HEIGHT = SQUARE_SIZE * 8 + SQUARE_SIZE * 2 + SQUARE_SIZE  # Extra space for title
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-LIGHT_BROWN = (240, 217, 181)
-DARK_BROWN = (181, 136, 99)
+# Enhanced colors for beautiful board
+DARK_WOOD = (139, 69, 19)      # Saddle brown
+LIGHT_WOOD = (222, 184, 135)   # Burlywood
+BORDER_COLOR = (101, 67, 33)   # Dark brown border
+HIGHLIGHT_COLOR = (255, 215, 0)  # Gold for highlights
+SHADOW_COLOR = (0, 0, 0, 50)   # Semi-transparent black
+TEXT_COLOR = (75, 54, 33)      # Dark brown for text
+
+# Fonts for coordinates and title
+coord_font = pygame.font.SysFont('Arial', max(12, int(SQUARE_SIZE * 0.25)))
+title_font = pygame.font.SysFont('Arial', max(16, int(SQUARE_SIZE * 0.35)), bold=True)
+font = pygame.font.SysFont('Arial', max(20, int(SQUARE_SIZE * 0.4)))
+small_font = pygame.font.SysFont('Arial', max(14, int(SQUARE_SIZE * 0.3)))
 
 # Piece images
 images = {}
@@ -71,10 +83,95 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Chess')
 
 def draw_board():
+    # Draw outer border with shadow effect
+    border_width = int(SQUARE_SIZE * 0.1)
+    board_size = SQUARE_SIZE * 8
+
+    # Shadow
+    pygame.draw.rect(screen, (0, 0, 0, 100),
+                     (SQUARE_SIZE - border_width//2, SQUARE_SIZE - border_width//2,
+                      board_size + border_width, board_size + border_width))
+
+    # Main border
+    pygame.draw.rect(screen, BORDER_COLOR,
+                     (SQUARE_SIZE - border_width//2, SQUARE_SIZE - border_width//2,
+                      board_size + border_width, board_size + border_width), border_width)
+
+    # Inner highlight border
+    pygame.draw.rect(screen, HIGHLIGHT_COLOR,
+                     (SQUARE_SIZE - border_width//4, SQUARE_SIZE - border_width//4,
+                      board_size + border_width//2, board_size + border_width//2), 2)
+
+    # Draw chess squares with enhanced colors and effects
     for row in range(8):
         for col in range(8):
-            color = LIGHT_BROWN if (row + col) % 2 == 0 else DARK_BROWN
-            pygame.draw.rect(screen, color, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+            x = col * SQUARE_SIZE + SQUARE_SIZE
+            y = row * SQUARE_SIZE + SQUARE_SIZE
+
+            # Base color
+            is_light = (row + col) % 2 == 0
+            base_color = LIGHT_WOOD if is_light else DARK_WOOD
+
+            # Create gradient effect
+            if is_light:
+                # Light square gradient (lighter at top-left)
+                color_top = (
+                    min(255, base_color[0] + 20),
+                    min(255, base_color[1] + 20),
+                    min(255, base_color[2] + 20)
+                )
+                color_bottom = base_color
+            else:
+                # Dark square gradient (darker at bottom-right)
+                color_top = base_color
+                color_bottom = (
+                    max(0, base_color[0] - 30),
+                    max(0, base_color[1] - 30),
+                    max(0, base_color[2] - 30)
+                )
+
+            # Draw gradient square
+            for i in range(SQUARE_SIZE):
+                gradient_factor = i / SQUARE_SIZE
+                r = int(color_top[0] + (color_bottom[0] - color_top[0]) * gradient_factor)
+                g = int(color_top[1] + (color_bottom[1] - color_top[1]) * gradient_factor)
+                b = int(color_top[2] + (color_bottom[2] - color_top[2]) * gradient_factor)
+                pygame.draw.line(screen, (r, g, b), (x, y + i), (x + SQUARE_SIZE - 1, y + i))
+
+            # Add wood grain effect (subtle lines)
+            if not is_light:
+                for i in range(0, SQUARE_SIZE, 4):
+                    alpha = 30 + (i % 20)
+                    grain_color = (
+                        min(255, base_color[0] + alpha),
+                        min(255, base_color[1] + alpha//2),
+                        min(255, base_color[2] + alpha//3)
+                    )
+                    pygame.draw.line(screen, grain_color, (x, y + i), (x + SQUARE_SIZE, y + i), 1)
+
+    # Draw coordinate labels
+    letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    numbers = ['8', '7', '6', '5', '4', '3', '2', '1']
+
+    # Bottom letters (a-h)
+    for i, letter in enumerate(letters):
+        text = coord_font.render(letter, True, TEXT_COLOR)
+        x = SQUARE_SIZE + i * SQUARE_SIZE + SQUARE_SIZE//2 - text.get_width()//2
+        y = SQUARE_SIZE + board_size + border_width//2
+        screen.blit(text, (x, y))
+
+    # Side numbers (8-1)
+    for i, number in enumerate(numbers):
+        text = coord_font.render(number, True, TEXT_COLOR)
+        x = SQUARE_SIZE - text.get_width() - border_width//2
+        y = SQUARE_SIZE + i * SQUARE_SIZE + SQUARE_SIZE//2 - text.get_height()//2
+        screen.blit(text, (x, y))
+
+    # Draw title
+    title = title_font.render("CHESS MASTER", True, HIGHLIGHT_COLOR)
+    title_x = WIDTH//2 - title.get_width()//2
+    title_y = SQUARE_SIZE//4
+    screen.blit(title, (title_x, title_y))
 
 def draw_pieces():
     for row in range(8):
@@ -82,9 +179,9 @@ def draw_pieces():
             piece = board[row][col]
             if piece != '--' and piece in images:
                 img = images[piece]
-                # Center the image in the square
-                x = col * SQUARE_SIZE + (SQUARE_SIZE - img.get_width()) // 2
-                y = row * SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
+                # Position pieces within the bordered board
+                x = col * SQUARE_SIZE + SQUARE_SIZE + (SQUARE_SIZE - img.get_width()) // 2
+                y = row * SQUARE_SIZE + SQUARE_SIZE + (SQUARE_SIZE - img.get_height()) // 2
                 screen.blit(img, (x, y))
 
 def draw_win_screen():
@@ -116,6 +213,11 @@ def draw_win_screen():
 
 def get_square_from_pos(pos):
     x, y = pos
+    # Adjust for board offset (border)
+    x -= SQUARE_SIZE
+    y -= SQUARE_SIZE
+    if x < 0 or y < 0 or x >= SQUARE_SIZE * 8 or y >= SQUARE_SIZE * 8:
+        return -1, -1  # Invalid position
     col = x // SQUARE_SIZE
     row = y // SQUARE_SIZE
     return row, col
