@@ -240,19 +240,157 @@ def is_valid_move(start_row, start_col, end_row, end_col):
     piece_type = piece[1]
     color = piece[0]
 
+    # Basic movement validation
+    move_valid = False
+
     # Pawn movement
     if piece_type == 'P':
         direction = -1 if color == 'w' else 1
         if start_col == end_col:  # Forward move
             if target_piece == '--':  # Must be empty
                 if end_row == start_row + direction:
-                    return True
+                    move_valid = True
                 elif end_row == start_row + 2 * direction and start_row == (6 if color == 'w' else 1):
                     # Check if path is clear for double move
-                    return board[start_row + direction][start_col] == '--'
+                    move_valid = board[start_row + direction][start_col] == '--'
         elif abs(start_col - end_col) == 1 and end_row == start_row + direction:
             # Diagonal capture
-            return target_piece != '--' and target_piece[0] != color
+            move_valid = target_piece != '--' and target_piece[0] != color
+
+    # Rook movement
+    elif piece_type == 'R':
+        if start_row == end_row:  # Horizontal move
+            step = 1 if end_col > start_col else -1
+            path_clear = True
+            for col in range(start_col + step, end_col, step):
+                if board[start_row][col] != '--':
+                    path_clear = False
+                    break
+            move_valid = path_clear
+        elif start_col == end_col:  # Vertical move
+            step = 1 if end_row > start_row else -1
+            path_clear = True
+            for row in range(start_row + step, end_row, step):
+                if board[row][start_col] != '--':
+                    path_clear = False
+                    break
+            move_valid = path_clear
+
+    # Bishop movement
+    elif piece_type == 'B':
+        if abs(start_row - end_row) == abs(start_col - end_col):
+            row_step = 1 if end_row > start_row else -1
+            col_step = 1 if end_col > start_col else -1
+            path_clear = True
+            row, col = start_row + row_step, start_col + col_step
+            while row != end_row:
+                if board[row][col] != '--':
+                    path_clear = False
+                    break
+                row += row_step
+                col += col_step
+            move_valid = path_clear
+
+    # Queen movement (combination of rook and bishop)
+    elif piece_type == 'Q':
+        # Check if it's a valid rook move
+        if start_row == end_row or start_col == end_col:
+            if start_row == end_row:  # Horizontal
+                step = 1 if end_col > start_col else -1
+                path_clear = True
+                for col in range(start_col + step, end_col, step):
+                    if board[start_row][col] != '--':
+                        path_clear = False
+                        break
+                move_valid = path_clear
+            else:  # Vertical
+                step = 1 if end_row > start_row else -1
+                path_clear = True
+                for row in range(start_row + step, end_row, step):
+                    if board[row][start_col] != '--':
+                        path_clear = False
+                        break
+                move_valid = path_clear
+        # Check if it's a valid bishop move
+        elif abs(start_row - end_row) == abs(start_col - end_col):
+            row_step = 1 if end_row > start_row else -1
+            col_step = 1 if end_col > start_col else -1
+            path_clear = True
+            row, col = start_row + row_step, start_col + col_step
+            while row != end_row:
+                if board[row][col] != '--':
+                    path_clear = False
+                    break
+                row += row_step
+                col += col_step
+            move_valid = path_clear
+
+    # Knight movement
+    elif piece_type == 'N':
+        move_valid = (abs(start_row - end_row) == 2 and abs(start_col - end_col) == 1) or \
+                     (abs(start_row - end_row) == 1 and abs(start_col - end_col) == 2)
+
+    # King movement
+    elif piece_type == 'K':
+        move_valid = abs(start_row - end_row) <= 1 and abs(start_col - end_col) <= 1
+
+    # If basic move is not valid, return False
+    if not move_valid:
+        return False
+
+    # Now check if this move would leave the king in check
+    # Create a temporary board to simulate the move
+    temp_board = [row[:] for row in board]
+    temp_board[end_row][end_col] = temp_board[start_row][start_col]
+    temp_board[start_row][start_col] = '--'
+
+    # Check if the king would be in check after this move
+    if is_king_in_check(temp_board, color):
+        return False
+
+    return True
+
+def make_move(start_row, start_col, end_row, end_col):
+    global turn
+    board[end_row][end_col] = board[start_row][start_col]
+    board[start_row][start_col] = '--'
+    turn = 'b' if turn == 'w' else 'w'
+    check_game_state()
+
+def get_random_move():
+    moves = []
+    for row in range(8):
+        for col in range(8):
+            if board[row][col][0] == turn:
+                for end_row in range(8):
+                    for end_col in range(8):
+                        if is_valid_move(row, col, end_row, end_col):
+                            moves.append((row, col, end_row, end_col))
+    if moves:
+        return random.choice(moves)
+    return None
+
+def can_piece_attack_square(board, start_row, start_col, end_row, end_col):
+    """Check if a piece can attack a square (basic movement rules only, no king safety)"""
+    if start_row == end_row and start_col == end_col:
+        return False
+
+    piece = board[start_row][start_col]
+    if piece == '--':
+        return False
+
+    target_piece = board[end_row][end_col]
+    if target_piece != '--' and target_piece[0] == piece[0]:  # Same color
+        return False
+
+    piece_type = piece[1]
+
+    # Pawn attack (diagonal only)
+    if piece_type == 'P':
+        color = piece[0]
+        direction = -1 if color == 'w' else 1
+        if abs(start_col - end_col) == 1 and end_row == start_row + direction:
+            return True
 
     # Rook movement
     elif piece_type == 'R':
@@ -322,26 +460,6 @@ def is_valid_move(start_row, start_col, end_row, end_col):
 
     return False
 
-def make_move(start_row, start_col, end_row, end_col):
-    global turn
-    board[end_row][end_col] = board[start_row][start_col]
-    board[start_row][start_col] = '--'
-    turn = 'b' if turn == 'w' else 'w'
-    check_game_state()
-
-def get_random_move():
-    moves = []
-    for row in range(8):
-        for col in range(8):
-            if board[row][col][0] == turn:
-                for end_row in range(8):
-                    for end_col in range(8):
-                        if is_valid_move(row, col, end_row, end_col):
-                            moves.append((row, col, end_row, end_col))
-    if moves:
-        return random.choice(moves)
-    return None
-
 def is_king_in_check(board, king_color):
     # Find king position
     king_pos = None
@@ -361,7 +479,7 @@ def is_king_in_check(board, king_color):
     for row in range(8):
         for col in range(8):
             if board[row][col][0] == opponent_color:
-                if is_valid_move(row, col, king_pos[0], king_pos[1]):
+                if can_piece_attack_square(board, row, col, king_pos[0], king_pos[1]):
                     return True
     return False
 
@@ -372,13 +490,7 @@ def has_legal_moves(board, color):
                 for end_row in range(8):
                     for end_col in range(8):
                         if is_valid_move(row, col, end_row, end_col):
-                            # Make temporary move
-                            temp_board = [row[:] for row in board]
-                            temp_board[end_row][end_col] = temp_board[row][col]
-                            temp_board[row][col] = '--'
-                            # Check if king would still be in check
-                            if not is_king_in_check(temp_board, color):
-                                return True
+                            return True
     return False
 
 def check_game_state():
@@ -392,22 +504,33 @@ def check_game_state():
 
     print(f"Debug: White in check: {white_in_check}, White has moves: {white_has_moves}")
     print(f"Debug: Black in check: {black_in_check}, Black has moves: {black_has_moves}")
+    print(f"Debug: Current turn: {turn}, Game over: {game_over}")
 
-    if not white_has_moves and white_in_check:
-        game_state = 'black_wins'
-        winner = 'Black'
-        game_over = True
-        print("Debug: Black wins!")
-    elif not black_has_moves and black_in_check:
-        game_state = 'white_wins'
-        winner = 'White'
-        game_over = True
-        print("Debug: White wins!")
-    elif not white_has_moves and not black_has_moves:
-        game_state = 'draw'
-        winner = None
-        game_over = True
-        print("Debug: Draw!")
+    # Only check for game end if it's actually that player's turn
+    if turn == 'w':
+        if not white_has_moves:
+            if white_in_check:
+                game_state = 'black_wins'
+                winner = 'Black'
+                game_over = True
+                print("Debug: Black wins by checkmate!")
+            else:
+                game_state = 'draw'
+                winner = None
+                game_over = True
+                print("Debug: Stalemate - Draw!")
+    else:  # turn == 'b'
+        if not black_has_moves:
+            if black_in_check:
+                game_state = 'white_wins'
+                winner = 'White'
+                game_over = True
+                print("Debug: White wins by checkmate!")
+            else:
+                game_state = 'draw'
+                winner = None
+                game_over = True
+                print("Debug: Stalemate - Draw!")
 
 def reset_game():
     global board, selected_square, turn, game_over, winner, game_state
@@ -422,6 +545,12 @@ def reset_game():
         ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
         ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
     ]
+    # Reset game state variables
+    selected_square = None
+    turn = 'w'
+    game_over = False
+    winner = None
+    game_state = 'playing'
 def draw_win_screen():
     # Create a more visible overlay with gradient effect
     overlay = pygame.Surface((WIDTH, HEIGHT))
