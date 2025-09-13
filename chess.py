@@ -408,16 +408,16 @@ def main():
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
+                # Debug keys - declare globals first
+                global game_state, winner, game_over
                 # Debug: Force win with 'W' key
                 if event.key == pygame.K_w:
-                    global game_state, winner, game_over
                     game_state = 'white_wins'
                     winner = 'White'
                     game_over = True
                     print("FORCED WIN: White wins activated!")
                 # Debug: Force loss with 'L' key
                 elif event.key == pygame.K_l:
-                    global game_state, winner, game_over
                     game_state = 'black_wins'
                     winner = 'Black'
                     game_over = True
