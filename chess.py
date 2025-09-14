@@ -342,6 +342,27 @@ def draw_check_indicator():
                     if int(time.time() * 2) % 2 == 0:
                         pygame.draw.rect(screen, (255, 100, 100), (x+2, y+2, SQUARE_SIZE-4, SQUARE_SIZE-4), 2)
 
+def draw_touch_feedback():
+    """Draw visual feedback for touch interactions"""
+    if selected_square is not None:
+        # Calculate centered board position
+        board_size = SQUARE_SIZE * 8
+        board_x = (WIDTH - board_size) // 2
+        board_y = (HEIGHT - board_size) // 2 + 20
+
+        row, col = selected_square
+        x = col * SQUARE_SIZE + board_x
+        y = row * SQUARE_SIZE + board_y
+
+        # Draw selection highlight
+        highlight_surface = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE))
+        highlight_surface.set_alpha(100)
+        highlight_surface.fill((255, 255, 0))  # Yellow highlight
+        screen.blit(highlight_surface, (x, y))
+
+        # Draw border around selected piece
+        pygame.draw.rect(screen, (255, 255, 0), (x, y, SQUARE_SIZE, SQUARE_SIZE), 3)
+
 def get_square_from_pos(pos):
     # Calculate centered board position (same as in draw_board)
     board_size = SQUARE_SIZE * 8
@@ -802,39 +823,78 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
                 try:
                     if event.type == pygame.FINGERDOWN:
-                        # Convert normalized finger position to screen coordinates - Pydroid3 safe
+                        # Handle finger touch events for mobile - Pydroid3 compatible
                         if hasattr(event, 'x') and hasattr(event, 'y'):
-                            pos = (int(float(event.x) * WIDTH), int(float(event.y) * HEIGHT))
+                            # Pydroid3 finger coordinates are normalized (0.0 to 1.0)
+                            # Convert to actual screen coordinates
+                            finger_x = float(event.x)
+                            finger_y = float(event.y)
+
+                            # Ensure coordinates are within valid range
+                            finger_x = max(0.0, min(1.0, finger_x))
+                            finger_y = max(0.0, min(1.0, finger_y))
+
+                            # Convert normalized coordinates to screen coordinates
+                            screen_x = int(finger_x * screen_width)
+                            screen_y = int(finger_y * screen_height)
+
+                            # Adjust for window offset if the game window is smaller than screen
+                            if WIDTH < screen_width:
+                                screen_x = int(finger_x * WIDTH)
+                            if HEIGHT < screen_height:
+                                screen_y = int(finger_y * HEIGHT)
+
+                            pos = (screen_x, screen_y)
+                            print(f"Pydroid3: Finger touch at normalized ({finger_x:.3f}, {finger_y:.3f}) -> screen ({screen_x}, {screen_y})")
                         else:
-                            # Fallback if finger event doesn't have x,y attributes
+                            # Fallback if finger event doesn't have proper attributes
+                            print("Pydroid3: Finger event missing x/y attributes, using center")
                             pos = (WIDTH//2, HEIGHT//2)
                     else:
                         pos = event.pos
+                        print(f"Pydroid3: Mouse click at {pos}")
 
                     row, col = get_square_from_pos(pos)
-                    if row >= 0 and col >= 0:  # Valid position
+                    print(f"Pydroid3: Converted to board position ({row}, {col})")
+
+                    if row >= 0 and col >= 0:  # Valid board position
                         if selected_square is None:
-                            if row < 8 and col < 8 and board[row][col][0] == 'w':
+                            # Select piece if it's a white piece (player's turn)
+                            if board[row][col][0] == 'w':
                                 selected_square = (row, col)
+                                print(f"Pydroid3: Selected white piece at ({row}, {col})")
+                            else:
+                                print(f"Pydroid3: Cannot select piece at ({row}, {col}) - not white or empty")
                         else:
+                            # Try to move selected piece
                             start_row, start_col = selected_square
                             if is_valid_move(start_row, start_col, row, col):
                                 make_move(start_row, start_col, row, col)
                                 selected_square = None
+                                print(f"Pydroid3: Moved piece from ({start_row}, {start_col}) to ({row}, {col})")
                                 # Computer's turn
-                                if not game_over:  # Only computer moves if game not over
+                                if not game_over:
                                     move = get_random_move()
                                     if move:
                                         make_move(*move)
+                                        print(f"Pydroid3: Computer moved from ({move[0]}, {move[1]}) to ({move[2]}, {move[3]})")
                             else:
+                                print(f"Pydroid3: Invalid move from ({start_row}, {start_col}) to ({row}, {col})")
                                 selected_square = None
+                    else:
+                        print(f"Pydroid3: Touch outside board area at screen pos {pos}")
+                        selected_square = None
+
                 except Exception as e:
                     print(f"Pydroid3: Touch event error: {e}")
+                    import traceback
+                    traceback.print_exc()
                     selected_square = None
 
         draw_board()
         draw_pieces()
         draw_check_indicator()
+        draw_touch_feedback()  # Add visual feedback for selected pieces
 
         # Draw winning screen on top of everything
         if game_over:
@@ -855,4 +915,7 @@ def main():
         clock.tick(60)
 
 if __name__ == '__main__':
+    print("Pydroid3: Chess game starting...")
+    print("Pydroid3: Touch the screen to select and move pieces!")
+    print("Pydroid3: Yellow highlight shows selected piece")
     main()
