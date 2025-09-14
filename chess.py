@@ -2,6 +2,22 @@ import pygame
 import sys
 import random
 
+# Detect if running on Pydroid3
+is_pydroid3 = False
+try:
+    import os
+    if os.name == 'posix':
+        # Check for Pydroid3-specific indicators
+        if hasattr(os, 'environ') and ('ANDROID_DATA' in os.environ or 'PYDROID3' in str(os.environ)):
+            is_pydroid3 = True
+        # Also check if pygame version indicates mobile
+        if hasattr(pygame, 'version') and 'SDL' in str(pygame.version.ver):
+            is_pydroid3 = True
+except:
+    pass
+
+print(f"Pydroid3: Running on Pydroid3: {is_pydroid3}")
+
 # Initialize Pygame - Pydroid3 compatible
 try:
     pygame.init()
@@ -779,6 +795,20 @@ def main():
     clock = pygame.time.Clock()
     while True:  # Changed from while not game_over to allow restart
         for event in pygame.event.get():
+            # Debug: Log all events for Pydroid3 debugging
+            print(f"Pydroid3: Event type: {event.type}")
+            if hasattr(event, 'type'):
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    print(f"Pydroid3: MOUSEBUTTONDOWN - pos: {event.pos}")
+                elif event.type == pygame.FINGERDOWN:
+                    print(f"Pydroid3: FINGERDOWN - x: {getattr(event, 'x', 'N/A')}, y: {getattr(event, 'y', 'N/A')}, finger_id: {getattr(event, 'finger_id', 'N/A')}")
+                elif event.type == pygame.MOUSEMOTION:
+                    print(f"Pydroid3: MOUSEMOTION - pos: {event.pos}")
+                elif event.type == pygame.FINGERMOTION:
+                    print(f"Pydroid3: FINGERMOTION - x: {getattr(event, 'x', 'N/A')}, y: {getattr(event, 'y', 'N/A')}")
+                elif event.type == pygame.FINGERUP:
+                    print(f"Pydroid3: FINGERUP - x: {getattr(event, 'x', 'N/A')}, y: {getattr(event, 'y', 'N/A')}")
+
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
@@ -820,8 +850,11 @@ def main():
                         reset_game()
                     else:
                         reset_game()
-            elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
+            elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN or (is_pydroid3 and event.type not in [pygame.QUIT, pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.FINGERMOTION, pygame.FINGERUP]):
                 try:
+                    # Pydroid3-specific touch handling
+                    pos = None
+
                     if event.type == pygame.FINGERDOWN:
                         # Handle finger touch events for mobile - Pydroid3 compatible
                         if hasattr(event, 'x') and hasattr(event, 'y'):
@@ -850,40 +883,90 @@ def main():
                             # Fallback if finger event doesn't have proper attributes
                             print("Pydroid3: Finger event missing x/y attributes, using center")
                             pos = (WIDTH//2, HEIGHT//2)
-                    else:
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        # Standard mouse click
                         pos = event.pos
                         print(f"Pydroid3: Mouse click at {pos}")
-
-                    row, col = get_square_from_pos(pos)
-                    print(f"Pydroid3: Converted to board position ({row}, {col})")
-
-                    if row >= 0 and col >= 0:  # Valid board position
-                        if selected_square is None:
-                            # Select piece if it's a white piece (player's turn)
-                            if board[row][col][0] == 'w':
-                                selected_square = (row, col)
-                                print(f"Pydroid3: Selected white piece at ({row}, {col})")
-                            else:
-                                print(f"Pydroid3: Cannot select piece at ({row}, {col}) - not white or empty")
-                        else:
-                            # Try to move selected piece
-                            start_row, start_col = selected_square
-                            if is_valid_move(start_row, start_col, row, col):
-                                make_move(start_row, start_col, row, col)
-                                selected_square = None
-                                print(f"Pydroid3: Moved piece from ({start_row}, {start_col}) to ({row}, {col})")
-                                # Computer's turn
-                                if not game_over:
-                                    move = get_random_move()
-                                    if move:
-                                        make_move(*move)
-                                        print(f"Pydroid3: Computer moved from ({move[0]}, {move[1]}) to ({move[2]}, {move[3]})")
-                            else:
-                                print(f"Pydroid3: Invalid move from ({start_row}, {start_col}) to ({row}, {col})")
-                                selected_square = None
                     else:
-                        print(f"Pydroid3: Touch outside board area at screen pos {pos}")
-                        selected_square = None
+                        # Pydroid3 might use different event types - try to get position from various attributes
+                        print(f"Pydroid3: Unknown touch event type: {event.type}")
+                        # Try common Pydroid3 touch attributes
+                        if hasattr(event, 'pos'):
+                            pos = event.pos
+                            print(f"Pydroid3: Using event.pos: {pos}")
+                        elif hasattr(event, 'x') and hasattr(event, 'y'):
+                            # Some Pydroid3 versions might use x,y directly as screen coordinates
+                            pos = (int(event.x), int(event.y))
+                            print(f"Pydroid3: Using direct x,y: {pos}")
+                        elif hasattr(event, 'position'):
+                            pos = event.position
+                            print(f"Pydroid3: Using event.position: {pos}")
+                        elif hasattr(event, 'touch') and hasattr(event.touch, 'x') and hasattr(event.touch, 'y'):
+                            # Some Pydroid3 versions might nest touch data
+                            touch_x = float(event.touch.x)
+                            touch_y = float(event.touch.y)
+                            pos = (int(touch_x * WIDTH), int(touch_y * HEIGHT))
+                            print(f"Pydroid3: Using nested touch: {pos}")
+                        else:
+                            # Try pygame touch functions as last resort
+                            try:
+                                if pygame.display.get_active() and pygame.touch.get_num_devices() > 0:
+                                    # Get touch position using pygame's touch API
+                                    touch_x, touch_y = pygame.touch.get_finger(0, 0)[:2]
+                                    pos = (int(touch_x * WIDTH), int(touch_y * HEIGHT))
+                                    print(f"Pydroid3: Using pygame.touch.get_finger(): {pos}")
+                            except:
+                                pass
+
+                            # Last resort - use center of screen
+                            if pos is None:
+                                pos = (WIDTH//2, HEIGHT//2)
+                                print(f"Pydroid3: No position found, using center: {pos}")
+
+                        # Pydroid3-specific: Try to handle touch events that might be disguised as other events
+                        if is_pydroid3 and pos == (WIDTH//2, HEIGHT//2):
+                            # Try to get touch position from pygame mouse position as fallback
+                            try:
+                                mouse_pos = pygame.mouse.get_pos()
+                                if mouse_pos != (0, 0):  # Only use if it's not default
+                                    pos = mouse_pos
+                                    print(f"Pydroid3: Using pygame.mouse.get_pos() as fallback: {pos}")
+                            except:
+                                pass
+
+                    if pos is not None:
+                        row, col = get_square_from_pos(pos)
+                        print(f"Pydroid3: Converted to board position ({row}, {col})")
+
+                        if row >= 0 and col >= 0:  # Valid board position
+                            if selected_square is None:
+                                # Select piece if it's a white piece (player's turn)
+                                if board[row][col][0] == 'w':
+                                    selected_square = (row, col)
+                                    print(f"Pydroid3: Selected white piece at ({row}, {col})")
+                                else:
+                                    print(f"Pydroid3: Cannot select piece at ({row}, {col}) - not white or empty")
+                            else:
+                                # Try to move selected piece
+                                start_row, start_col = selected_square
+                                if is_valid_move(start_row, start_col, row, col):
+                                    make_move(start_row, start_col, row, col)
+                                    selected_square = None
+                                    print(f"Pydroid3: Moved piece from ({start_row}, {start_col}) to ({row}, {col})")
+                                    # Computer's turn
+                                    if not game_over:
+                                        move = get_random_move()
+                                        if move:
+                                            make_move(*move)
+                                            print(f"Pydroid3: Computer moved from ({move[0]}, {move[1]}) to ({move[2]}, {move[3]})")
+                                else:
+                                    print(f"Pydroid3: Invalid move from ({start_row}, {start_col}) to ({row}, {col})")
+                                    selected_square = None
+                        else:
+                            print(f"Pydroid3: Touch outside board area at screen pos {pos}")
+                            selected_square = None
+                    else:
+                        print("Pydroid3: Could not determine touch position")
 
                 except Exception as e:
                     print(f"Pydroid3: Touch event error: {e}")
