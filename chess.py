@@ -149,6 +149,8 @@ turn = 'w'  # w for white, b for black
 game_over = False
 winner = None
 game_state = 'playing'  # 'playing', 'white_wins', 'black_wins', 'draw'
+difficulty = 'medium'  # 'easy', 'medium', 'hard'
+game_mode = 'selecting_difficulty'  # 'selecting_difficulty', 'playing'
 
 # Fonts - mobile optimized
 font = pygame.font.SysFont('Arial', max(24, int(SQUARE_SIZE * 0.5)))
@@ -271,6 +273,18 @@ def draw_board():
     title_x = WIDTH//2 - title.get_width()//2
     title_y = 10  # Higher up for mobile
     screen.blit(title, (title_x, title_y))
+
+    # Draw difficulty indicator
+    difficulty_colors = {
+        'easy': (100, 200, 100),
+        'medium': (255, 165, 0),
+        'hard': (200, 50, 50)
+    }
+    diff_color = difficulty_colors.get(difficulty, (255, 255, 255))
+    diff_text = small_font.render(f"Difficulty: {difficulty.upper()}", True, diff_color)
+    diff_x = WIDTH - diff_text.get_width() - 10
+    diff_y = 10
+    screen.blit(diff_text, (diff_x, diff_y))
 
 def draw_pieces():
     # Calculate centered board position (same as in draw_board)
@@ -540,6 +554,106 @@ def get_random_move():
         return random.choice(moves)
     return None
 
+def evaluate_board(board):
+    """Simple board evaluation for AI"""
+    score = 0
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece != '--':
+                # Material value
+                value = piece_values.get(piece[1], 0)
+                # Position bonus for center control
+                center_bonus = 0
+                if 2 <= row <= 5 and 2 <= col <= 5:
+                    center_bonus = 0.1 * value
+                # Color multiplier
+                multiplier = 1 if piece[0] == 'b' else -1  # Black is maximizing, white is minimizing
+                score += multiplier * (value + center_bonus)
+    return score
+
+def minimax(board, depth, alpha, beta, maximizing_player):
+    """Minimax algorithm with alpha-beta pruning"""
+    if depth == 0 or game_over:
+        return evaluate_board(board), None
+
+    if maximizing_player:  # Black's turn (AI)
+        max_eval = float('-inf')
+        best_move = None
+        moves = get_all_moves(board, 'b')
+        for move in moves:
+            temp_board = [row[:] for row in board]
+            temp_board[move[2]][move[3]] = temp_board[move[0]][move[1]]
+            temp_board[move[0]][move[1]] = '--'
+            eval_score, _ = minimax(temp_board, depth - 1, alpha, beta, False)
+            if eval_score > max_eval:
+                max_eval = eval_score
+                best_move = move
+            alpha = max(alpha, eval_score)
+            if beta <= alpha:
+                break
+        return max_eval, best_move
+    else:  # White's turn (player)
+        min_eval = float('inf')
+        best_move = None
+        moves = get_all_moves(board, 'w')
+        for move in moves:
+            temp_board = [row[:] for row in board]
+            temp_board[move[2]][move[3]] = temp_board[move[0]][move[1]]
+            temp_board[move[0]][move[1]] = '--'
+            eval_score, _ = minimax(temp_board, depth - 1, alpha, beta, True)
+            if eval_score < min_eval:
+                min_eval = eval_score
+                best_move = move
+            beta = min(beta, eval_score)
+            if beta <= alpha:
+                break
+        return min_eval, best_move
+
+def get_all_moves(board, color):
+    """Get all valid moves for a color"""
+    moves = []
+    for row in range(8):
+        for col in range(8):
+            if board[row][col][0] == color:
+                for end_row in range(8):
+                    for end_col in range(8):
+                        if is_valid_move(row, col, end_row, end_col):
+                            moves.append((row, col, end_row, end_col))
+    return moves
+
+def get_computer_move(difficulty):
+    """Get computer move based on difficulty level"""
+    if difficulty == 'easy':
+        # Pure random moves
+        return get_random_move()
+    elif difficulty == 'medium':
+        # Basic evaluation with 1-ply lookahead
+        moves = get_all_moves(board, turn)
+        if not moves:
+            return None
+
+        best_move = None
+        best_score = float('-inf')
+
+        for move in moves:
+            temp_board = [row[:] for row in board]
+            temp_board[move[2]][move[3]] = temp_board[move[0]][move[1]]
+            temp_board[move[0]][move[1]] = '--'
+            score = evaluate_board(temp_board)
+            if score > best_score:
+                best_score = score
+                best_move = move
+
+        return best_move if best_move else random.choice(moves)
+    elif difficulty == 'hard':
+        # Full minimax with alpha-beta pruning (2-ply)
+        _, best_move = minimax(board, 2, float('-inf'), float('inf'), True)
+        return best_move
+    else:
+        # Default to easy
+        return get_random_move()
+
 def can_piece_attack_square(board, start_row, start_col, end_row, end_col):
     """Check if a piece can attack a square (basic movement rules only, no king safety)"""
     if start_row == end_row and start_col == end_col:
@@ -703,7 +817,7 @@ def check_game_state():
                 print("Debug: Stalemate - Draw!")
 
 def reset_game():
-    global board, selected_square, turn, game_over, winner, game_state
+    global board, selected_square, turn, game_over, winner, game_state, game_mode
     # Reset board
     board = [
         ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
@@ -721,6 +835,7 @@ def reset_game():
     game_over = False
     winner = None
     game_state = 'playing'
+    game_mode = 'selecting_difficulty'
 def draw_win_screen():
     # Create a more visible overlay with gradient effect
     overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -790,8 +905,133 @@ def draw_win_screen():
 
     print(f"WIN SCREEN: Drawing {message} with state {game_state}")
 
+def draw_difficulty_selection():
+    """Draw the difficulty selection screen with fancy animations"""
+    # Create animated background
+    import time
+    time_offset = time.time() * 2
+
+    # Animated gradient background
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            # Create wave-like pattern
+            wave1 = (x / WIDTH + y / HEIGHT + time_offset) % 1
+            wave2 = (x / WIDTH - y / HEIGHT + time_offset * 0.7) % 1
+
+            r = int(50 + 30 * wave1)
+            g = int(30 + 40 * wave2)
+            b = int(70 + 30 * (wave1 + wave2) / 2)
+
+            pygame.draw.line(screen, (r, g, b), (x, y), (x, y))
+
+    # Semi-transparent overlay
+    overlay = pygame.Surface((WIDTH, HEIGHT))
+    overlay.set_alpha(150)
+    overlay.fill((0, 0, 0))
+    screen.blit(overlay, (0, 0))
+
+    # Title with glow effect
+    title = title_font.render("SELECT DIFFICULTY", True, (255, 255, 255))
+    title_shadow = title_font.render("SELECT DIFFICULTY", True, (0, 0, 0))
+
+    # Pulsing glow effect
+    glow_intensity = int(100 + 50 * abs(time.time() % 2 - 1))
+    glow_surface = pygame.Surface((title.get_width() + 20, title.get_height() + 20))
+    glow_surface.set_alpha(glow_intensity)
+    glow_surface.fill((255, 215, 0))  # Gold glow
+
+    # Draw glow
+    screen.blit(glow_surface, (WIDTH//2 - glow_surface.get_width()//2, 60 - 10))
+
+    # Draw shadow and title
+    screen.blit(title_shadow, (WIDTH//2 - title.get_width()//2 + 2, 62))
+    screen.blit(title, (WIDTH//2 - title.get_width()//2, 60))
+
+    # Difficulty options with fancy styling
+    difficulties = [
+        ("EASY", "Random moves - Perfect for beginners", (100, 200, 100)),
+        ("MEDIUM", "Smart evaluation - Balanced challenge", (255, 165, 0)),
+        ("HARD", "Advanced AI - Expert level", (200, 50, 50))
+    ]
+
+    button_width = 300
+    button_height = 80
+    spacing = 100
+    start_y = HEIGHT//2 - (len(difficulties) * spacing)//2
+
+    for i, (level, description, color) in enumerate(difficulties):
+        y = start_y + i * spacing
+        x = WIDTH//2 - button_width//2
+
+        # Animated button background with pulsing effect
+        pulse = abs(time.time() % 2 - 1)  # 0 to 1 pulsing
+        if difficulty.lower() == level.lower():
+            pulse = 1.0  # Full brightness for selected
+
+        # Create animated gradient background
+        for dy in range(button_height):
+            gradient_factor = dy / button_height
+            base_intensity = 0.7 + 0.3 * gradient_factor
+            animated_intensity = base_intensity * (0.8 + 0.4 * pulse)
+
+            button_color = (
+                min(255, int(color[0] * animated_intensity)),
+                min(255, int(color[1] * animated_intensity)),
+                min(255, int(color[2] * animated_intensity))
+            )
+            pygame.draw.line(screen, button_color, (x, y + dy), (x + button_width, y + dy))
+
+        # Button border with glow
+        border_color = (
+            min(255, color[0] + 50),
+            min(255, color[1] + 50),
+            min(255, color[2] + 50)
+        )
+        pygame.draw.rect(screen, border_color, (x, y, button_width, button_height), 3)
+
+        # Inner highlight
+        pygame.draw.rect(screen, (255, 255, 255), (x + 2, y + 2, button_width - 4, button_height - 4), 1)
+
+        # Difficulty level text
+        level_text = font.render(level, True, (255, 255, 255))
+        level_rect = level_text.get_rect(center=(WIDTH//2, y + 25))
+        screen.blit(level_text, level_rect)
+
+        # Description text
+        desc_text = small_font.render(description, True, (220, 220, 220))
+        desc_rect = desc_text.get_rect(center=(WIDTH//2, y + 50))
+        screen.blit(desc_text, desc_rect)
+
+        # Enhanced selection indicator with fancy animations
+        if difficulty.lower() == level.lower():
+            # Animated selection ring with multiple layers
+            ring_radius = int(40 + 15 * abs(time.time() % 2 - 1))
+            ring_color = (255, 255, 0)
+            pygame.draw.circle(screen, ring_color, (WIDTH//2, y + button_height//2), ring_radius, 3)
+
+            # Inner rotating elements
+            center_x, center_y = WIDTH//2, y + button_height//2
+            rotation_time = time.time() * 2
+
+            # Rotating triangles around the center
+            for angle_offset in [0, 120, 240]:
+                angle = rotation_time + angle_offset
+                triangle_distance = 15 + 5 * abs(time.time() % 2 - 1)
+                tri_x = center_x + triangle_distance * (angle_offset // 120 - 1)
+                tri_y = center_y + triangle_distance * ((angle_offset // 120) % 2 - 0.5) * 2
+                pygame.draw.circle(screen, (255, 255, 0), (int(tri_x), int(tri_y)), 4)
+
+            # Central pulsing dot
+            dot_radius = int(6 + 3 * abs(time.time() % 2 - 1))
+            pygame.draw.circle(screen, (255, 255, 0), (WIDTH//2, y + button_height//2), dot_radius)
+
+    # Instructions
+    instr_text = small_font.render("Tap a difficulty level to start playing!", True, (255, 255, 255))
+    instr_rect = instr_text.get_rect(center=(WIDTH//2, HEIGHT - 50))
+    screen.blit(instr_text, instr_rect)
+
 def main():
-    global selected_square, turn, game_over
+    global selected_square, turn, game_over, difficulty, game_mode
     clock = pygame.time.Clock()
     while True:  # Changed from while not game_over to allow restart
         for event in pygame.event.get():
@@ -850,6 +1090,45 @@ def main():
                         reset_game()
                     else:
                         reset_game()
+            elif game_mode == 'selecting_difficulty':
+                # Handle difficulty selection
+                if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
+                    try:
+                        pos = None
+                        if event.type == pygame.FINGERDOWN:
+                            if hasattr(event, 'x') and hasattr(event, 'y'):
+                                finger_x = float(event.x)
+                                finger_y = float(event.y)
+                                finger_x = max(0.0, min(1.0, finger_x))
+                                finger_y = max(0.0, min(1.0, finger_y))
+                                screen_x = int(finger_x * screen_width)
+                                screen_y = int(finger_y * screen_height)
+                                if WIDTH < screen_width:
+                                    screen_x = int(finger_x * WIDTH)
+                                if HEIGHT < screen_height:
+                                    screen_y = int(finger_y * HEIGHT)
+                                pos = (screen_x, screen_y)
+                        elif event.type == pygame.MOUSEBUTTONDOWN:
+                            pos = event.pos
+
+                        if pos:
+                            # Check which difficulty button was clicked
+                            button_width = 300
+                            button_height = 80
+                            spacing = 100
+                            start_y = HEIGHT//2 - (3 * spacing)//2
+
+                            for i, level in enumerate(['easy', 'medium', 'hard']):
+                                y = start_y + i * spacing
+                                x = WIDTH//2 - button_width//2
+
+                                if x <= pos[0] <= x + button_width and y <= pos[1] <= y + button_height:
+                                    difficulty = level
+                                    game_mode = 'playing'
+                                    print(f"Selected difficulty: {difficulty}")
+                                    break
+                    except Exception as e:
+                        print(f"Difficulty selection error: {e}")
             elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN or (is_pydroid3 and event.type not in [pygame.QUIT, pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.FINGERMOTION, pygame.FINGERUP]):
                 try:
                     # Pydroid3-specific touch handling
@@ -955,10 +1234,10 @@ def main():
                                     print(f"Pydroid3: Moved piece from ({start_row}, {start_col}) to ({row}, {col})")
                                     # Computer's turn
                                     if not game_over:
-                                        move = get_random_move()
+                                        move = get_computer_move(difficulty)
                                         if move:
                                             make_move(*move)
-                                            print(f"Pydroid3: Computer moved from ({move[0]}, {move[1]}) to ({move[2]}, {move[3]})")
+                                            print(f"Pydroid3: Computer ({difficulty}) moved from ({move[0]}, {move[1]}) to ({move[2]}, {move[3]})")
                                 else:
                                     print(f"Pydroid3: Invalid move from ({start_row}, {start_col}) to ({row}, {col})")
                                     selected_square = None
@@ -974,25 +1253,29 @@ def main():
                     traceback.print_exc()
                     selected_square = None
 
-        draw_board()
-        draw_pieces()
-        draw_check_indicator()
-        draw_touch_feedback()  # Add visual feedback for selected pieces
+        # Draw based on game mode
+        if game_mode == 'selecting_difficulty':
+            draw_difficulty_selection()
+        else:
+            draw_board()
+            draw_pieces()
+            draw_check_indicator()
+            draw_touch_feedback()  # Add visual feedback for selected pieces
 
-        # Draw winning screen on top of everything
-        if game_over:
-            print(f"Game Over Screen: State={game_state}, Winner={winner}, game_over={game_over}")
-            # Add a simple visual indicator
-            pygame.draw.circle(screen, (255, 255, 0), (WIDTH-50, 50), 20)  # Yellow background
-            pygame.draw.circle(screen, (255, 0, 0), (WIDTH-50, 50), 15)    # Red middle
-            pygame.draw.circle(screen, (0, 255, 0), (WIDTH-50, 50), 10)    # Green center
-            # Add text indicator
-            status_font = pygame.font.SysFont('Arial', 16)
-            status_text = status_font.render("GAME OVER", True, (255, 255, 255))
-            screen.blit(status_text, (WIDTH-100, 80))
-            draw_win_screen()
-            # Force a redraw to make sure it's visible
-            pygame.display.update()
+            # Draw winning screen on top of everything
+            if game_over:
+                print(f"Game Over Screen: State={game_state}, Winner={winner}, game_over={game_over}")
+                # Add a simple visual indicator
+                pygame.draw.circle(screen, (255, 255, 0), (WIDTH-50, 50), 20)  # Yellow background
+                pygame.draw.circle(screen, (255, 0, 0), (WIDTH-50, 50), 15)    # Red middle
+                pygame.draw.circle(screen, (0, 255, 0), (WIDTH-50, 50), 10)    # Green center
+                # Add text indicator
+                status_font = pygame.font.SysFont('Arial', 16)
+                status_text = status_font.render("GAME OVER", True, (255, 255, 255))
+                screen.blit(status_text, (WIDTH-100, 80))
+                draw_win_screen()
+                # Force a redraw to make sure it's visible
+                pygame.display.update()
 
         pygame.display.flip()
         clock.tick(60)
