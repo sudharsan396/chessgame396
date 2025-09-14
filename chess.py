@@ -393,6 +393,72 @@ def draw_touch_feedback():
         # Draw border around selected piece
         pygame.draw.rect(screen, (255, 255, 0), (x, y, SQUARE_SIZE, SQUARE_SIZE), 3)
 
+def get_valid_moves_for_piece(row, col):
+    """Get all valid moves for the piece at the given position"""
+    valid_moves = []
+    valid_captures = []
+
+    if board[row][col] == '--':
+        return valid_moves, valid_captures
+
+    for end_row in range(8):
+        for end_col in range(8):
+            if is_valid_move(row, col, end_row, end_col):
+                if board[end_row][end_col] == '--':
+                    valid_moves.append((end_row, end_col))
+                else:
+                    valid_captures.append((end_row, end_col))
+
+    return valid_moves, valid_captures
+
+def draw_move_paths():
+    """Draw visual indicators for all valid moves of the selected piece"""
+    if selected_square is None:
+        return
+
+    # Calculate centered board position
+    board_size = SQUARE_SIZE * 8
+    board_x = (WIDTH - board_size) // 2
+    board_y = (HEIGHT - board_size) // 2 + 20
+
+    start_row, start_col = selected_square
+    valid_moves, valid_captures = get_valid_moves_for_piece(start_row, start_col)
+
+    # Draw valid move indicators (green circles for empty squares)
+    for move_row, move_col in valid_moves:
+        x = move_col * SQUARE_SIZE + board_x + SQUARE_SIZE // 2
+        y = move_row * SQUARE_SIZE + board_y + SQUARE_SIZE // 2
+
+        # Draw larger circle for mobile visibility
+        radius = max(8, SQUARE_SIZE // 6)
+
+        # Outer glow ring
+        pygame.draw.circle(screen, (0, 150, 0), (x, y), radius + 3, 2)
+        # Main circle
+        pygame.draw.circle(screen, (0, 255, 0), (x, y), radius)
+        # Inner highlight
+        pygame.draw.circle(screen, (150, 255, 150), (x, y), radius - 2)
+
+    # Draw valid capture indicators (red circles for enemy pieces)
+    for capture_row, capture_col in valid_captures:
+        x = capture_col * SQUARE_SIZE + board_x + SQUARE_SIZE // 2
+        y = capture_row * SQUARE_SIZE + board_y + SQUARE_SIZE // 2
+
+        # Draw larger circle for mobile visibility
+        radius = max(10, SQUARE_SIZE // 5)
+
+        # Outer glow ring
+        pygame.draw.circle(screen, (150, 0, 0), (x, y), radius + 4, 3)
+        # Main circle
+        pygame.draw.circle(screen, (255, 0, 0), (x, y), radius)
+        # Inner highlight
+        pygame.draw.circle(screen, (255, 150, 150), (x, y), radius - 3)
+
+        # Add capture indicator (X mark)
+        cross_size = max(4, SQUARE_SIZE // 12)
+        pygame.draw.line(screen, (255, 255, 255), (x - cross_size, y - cross_size), (x + cross_size, y + cross_size), 2)
+        pygame.draw.line(screen, (255, 255, 255), (x + cross_size, y - cross_size), (x - cross_size, y + cross_size), 2)
+
 def get_square_from_pos(pos):
     # Calculate centered board position (same as in draw_board)
     board_size = SQUARE_SIZE * 8
@@ -1251,6 +1317,7 @@ def main():
             draw_pieces()
             draw_check_indicator()
             draw_touch_feedback()  # Add visual feedback for selected pieces
+            draw_move_paths()  # Add move path visualization
 
             # Draw winning screen on top of everything
             if game_over:
