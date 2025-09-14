@@ -949,17 +949,17 @@ def draw_difficulty_selection():
 
     # Difficulty options with fancy styling
     difficulties = [
-        ("EASY", "Random moves - Perfect for beginners", (100, 200, 100)),
-        ("MEDIUM", "Smart evaluation - Balanced challenge", (255, 165, 0)),
-        ("HARD", "Advanced AI - Expert level", (200, 50, 50))
+        ("EASY", (100, 200, 100)),
+        ("MEDIUM", (255, 165, 0)),
+        ("HARD", (200, 50, 50))
     ]
 
-    button_width = 300
+    button_width = 250
     button_height = 80
     spacing = 100
     start_y = HEIGHT//2 - (len(difficulties) * spacing)//2
 
-    for i, (level, description, color) in enumerate(difficulties):
+    for i, (level, color) in enumerate(difficulties):
         y = start_y + i * spacing
         x = WIDTH//2 - button_width//2
 
@@ -992,15 +992,10 @@ def draw_difficulty_selection():
         # Inner highlight
         pygame.draw.rect(screen, (255, 255, 255), (x + 2, y + 2, button_width - 4, button_height - 4), 1)
 
-        # Difficulty level text
+        # Difficulty level text - centered
         level_text = font.render(level, True, (255, 255, 255))
-        level_rect = level_text.get_rect(center=(WIDTH//2, y + 25))
+        level_rect = level_text.get_rect(center=(WIDTH//2, y + button_height//2))
         screen.blit(level_text, level_rect)
-
-        # Description text
-        desc_text = small_font.render(description, True, (220, 220, 220))
-        desc_rect = desc_text.get_rect(center=(WIDTH//2, y + 50))
-        screen.blit(desc_text, desc_rect)
 
         # Enhanced selection indicator with fancy animations
         if difficulty.lower() == level.lower():
@@ -1024,11 +1019,6 @@ def draw_difficulty_selection():
             # Central pulsing dot
             dot_radius = int(6 + 3 * abs(time.time() % 2 - 1))
             pygame.draw.circle(screen, (255, 255, 0), (WIDTH//2, y + button_height//2), dot_radius)
-
-    # Instructions
-    instr_text = small_font.render("Tap a difficulty level to start playing!", True, (255, 255, 255))
-    instr_rect = instr_text.get_rect(center=(WIDTH//2, HEIGHT - 50))
-    screen.blit(instr_text, instr_rect)
 
 def main():
     global selected_square, turn, game_over, difficulty, game_mode
@@ -1113,7 +1103,7 @@ def main():
 
                         if pos:
                             # Check which difficulty button was clicked
-                            button_width = 300
+                            button_width = 250
                             button_height = 80
                             spacing = 100
                             start_y = HEIGHT//2 - (3 * spacing)//2
