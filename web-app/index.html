@@ -189,16 +189,21 @@
                     indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
                 });
 
-                console.log('Loading micropip...');
+                console.log('Loading available packages...');
                 await pyodide.loadPackage('micropip');
 
-                console.log('Loading pygame-ce...');
-                await pyodide.loadPackage('pygame-ce');
-
-                console.log('Installing pygame-ce...');
+                console.log('Installing basic packages...');
                 await pyodide.runPythonAsync(`
-                    import pygame
-                    print('pygame-ce loaded successfully')
+                    import micropip
+                    try:
+                        # Try to install basic packages that might be useful
+                        await micropip.install('numpy')
+                        print('✅ NumPy installed successfully!')
+                    except Exception as e:
+                        print(f'NumPy failed: {e}')
+                        print('Continuing without NumPy - using basic Python')
+
+                    print('🎯 Basic packages ready!')
                 `);
 
                 console.log('Loading chess game...');
@@ -237,9 +242,14 @@
                 await pyodide.runPythonAsync(pythonCode);
 
                 // Initialize the game
-                await pyodide.runPythonAsync('init_web_game()');
+                const result = await pyodide.runPythonAsync('init_web_game()');
 
                 gameRunning = true;
+
+                // Initialize the chess board display
+                initChessBoard();
+
+                console.log('Chess game loaded successfully!');
 
             } catch (error) {
                 console.error('Failed to load chess game:', error);
@@ -247,38 +257,157 @@
             }
         }
 
-        function updateStatus(message) {
-            document.getElementById('status').textContent = message;
+        // Chess board variables
+        let chessBoard = null;
+        let selectedSquare = null;
+        let currentBoard = null;
+
+        function initChessBoard() {
+            chessBoard = document.createElement('div');
+            chessBoard.id = 'chess-board';
+            chessBoard.style.cssText = `
+                display: grid;
+                grid-template-columns: repeat(8, 1fr);
+                grid-template-rows: repeat(8, 1fr);
+                width: 400px;
+                height: 400px;
+                border: 2px solid #8B4513;
+                margin: 20px auto;
+                background: #F5DEB3;
+            `;
+
+            // Create the 64 squares
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = 'chess-square';
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+
+                    // Alternate colors for chess board pattern
+                    const isLight = (row + col) % 2 === 0;
+                    square.style.cssText = `
+                        width: 50px;
+                        height: 50px;
+                        background-color: ${isLight ? '#F0D9B5' : '#B58863'};
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 36px;
+                        cursor: pointer;
+                        user-select: none;
+                    `;
+
+                    square.addEventListener('click', handleSquareClick);
+                    chessBoard.appendChild(square);
+                }
+            }
+
+            // Replace canvas with chess board
+            const canvas = document.getElementById('chess-canvas');
+            canvas.parentNode.replaceChild(chessBoard, canvas);
+
+            // Load initial board state
+            updateBoardDisplay();
+        }
+
+        async function updateBoardDisplay() {
+            try {
+                const boardState = await pyodide.runPythonAsync('get_board_state()');
+                const state = JSON.parse(boardState);
+
+                currentBoard = state.board;
+                selectedSquare = state.selected_square;
+
+                // Update each square
+                const squares = chessBoard.querySelectorAll('.chess-square');
+                squares.forEach(square => {
+                    const row = parseInt(square.dataset.row);
+                    const col = parseInt(square.dataset.col);
+                    const piece = currentBoard[row][col];
+
+                    // Clear previous content
+                    square.textContent = '';
+
+                    // Add piece symbol
+                    if (piece !== '--') {
+                        square.textContent = getPieceSymbol(piece);
+                    }
+
+                    // Highlight selected square
+                    if (selectedSquare && selectedSquare[0] === row && selectedSquare[1] === col) {
+                        square.style.border = '3px solid #FFD700';
+                    } else {
+                        square.style.border = 'none';
+                    }
+                });
+
+                // Update status
+                updateStatus(`Turn: ${state.turn === 'w' ? 'White' : 'Black'}`);
+                if (state.game_over) {
+                    updateStatus(`Game Over! ${state.winner ? state.winner + ' wins!' : 'Stalemate!'}`);
+                }
+
+            } catch (error) {
+                console.error('Failed to update board:', error);
+            }
+        }
+
+        function getPieceSymbol(piece) {
+            const symbols = {
+                'wK': '♔', 'wQ': '♕', 'wR': '♖', 'wB': '♗', 'wN': '♘', 'wP': '♙',
+                'bK': '♚', 'bQ': '♛', 'bR': '♜', 'bB': '♝', 'bN': '♞', 'bP': '♟'
+            };
+            return symbols[piece] || '';
+        }
+
+        async function handleSquareClick(event) {
+            const square = event.target;
+            const row = parseInt(square.dataset.row);
+            const col = parseInt(square.dataset.col);
+
+            try {
+                // Handle click through Python
+                await pyodide.runPythonAsync(`handle_mouse_click(${col * 50 + 25}, ${row * 50 + 25})`);
+
+                // Update display after move
+                setTimeout(updateBoardDisplay, 100);
+
+            } catch (error) {
+                console.error('Failed to handle click:', error);
+            }
         }
 
         // Event listeners
         document.addEventListener('DOMContentLoaded', function() {
             // Difficulty selection
             document.querySelectorAll('.difficulty-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', async function() {
                     document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('selected'));
                     this.classList.add('selected');
 
                     const difficulty = this.dataset.difficulty;
                     if (pyodide && gameRunning) {
-                        pyodide.runPythonAsync(`set_difficulty('${difficulty}')`);
+                        await pyodide.runPythonAsync(`set_difficulty('${difficulty}')`);
                         updateStatus(`Difficulty set to ${difficulty.toUpperCase()}!`);
                     }
                 });
             });
 
             // Control buttons
-            document.getElementById('new-game').addEventListener('click', function() {
+            document.getElementById('new-game').addEventListener('click', async function() {
                 if (pyodide && gameRunning) {
-                    pyodide.runPythonAsync('new_game()');
+                    await pyodide.runPythonAsync('new_game()');
                     updateStatus('New game started!');
+                    setTimeout(updateBoardDisplay, 100);
                 }
             });
 
-            document.getElementById('reset').addEventListener('click', function() {
+            document.getElementById('reset').addEventListener('click', async function() {
                 if (pyodide && gameRunning) {
-                    pyodide.runPythonAsync('reset_game()');
+                    await pyodide.runPythonAsync('reset_game()');
                     updateStatus('Game reset!');
+                    setTimeout(updateBoardDisplay, 100);
                 }
             });
 

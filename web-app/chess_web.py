@@ -1,27 +1,9 @@
-import pygame
-import pygame.font
 import sys
 import random
-import asyncio
-import io
-import base64
+import json
 from js import document, window, console
 
-# Web-specific imports and setup
-try:
-    import pygame.display
-    pygame.display.init()
-except Exception as e:
-    if is_web and console:
-        console.log(f"Pygame display init failed (expected in web): {str(e)}")
-    pass
-
-# Global variables for web environment
-canvas = None
-web_surface = None
-web_clock = None
-
-# Detect web environment
+# Web environment detection
 is_web = True
 try:
     import js
@@ -30,38 +12,174 @@ except:
     is_web = False
     console = None
 
-# Initialize Pygame for web
+# Chess board representation
+board = [
+    ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
+    ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
+    ['--', '--', '--', '--', '--', '--', '--', '--'],
+    ['--', '--', '--', '--', '--', '--', '--', '--'],
+    ['--', '--', '--', '--', '--', '--', '--', '--'],
+    ['--', '--', '--', '--', '--', '--', '--', '--'],
+    ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
+    ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
+]
+
+# Game state
+selected_square = None
+turn = 'w'
+game_over = False
+winner = None
+difficulty = 'medium'
+game_mode = 'selecting_difficulty'
+
+# Piece values for AI
+piece_values = {
+    'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 0,
+    'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0
+}
+
 def init_web_game():
     """Initialize the game for web environment"""
-    global canvas, web_surface, web_clock
-
     try:
-        # Initialize Pygame (skip display for web)
-        if not is_web:
-            pygame.init()
-        else:
-            # Manual initialization for web environment
-            pygame.font.init()
-
-        # Set up canvas for web
-        canvas = document.getElementById('chess-canvas')
-        if canvas:
-            # Create surface that matches canvas size
-            web_surface = pygame.Surface((canvas.width, canvas.height))
-            web_clock = pygame.time.Clock()
-
-            if console:
-                console.log(f"Web game initialized with canvas size: {canvas.width}x{canvas.height}")
-            return True
-        else:
-            if console:
-                console.log("Canvas not found!")
-            return False
-
+        if console:
+            console.log("Web chess game initialized successfully!")
+        return True
     except Exception as e:
         if console:
             console.log(f"Failed to initialize web game: {str(e)}")
         return False
+
+def get_board_state():
+    """Get the current board state as JSON"""
+    return json.dumps({
+        'board': board,
+        'turn': turn,
+        'game_over': game_over,
+        'winner': winner,
+        'selected_square': selected_square,
+        'difficulty': difficulty,
+        'game_mode': game_mode
+    })
+
+def make_move_python(start_row, start_col, end_row, end_col):
+    """Make a move on the board"""
+    global turn, game_over, winner
+
+    try:
+        if not is_valid_move(start_row, start_col, end_row, end_col):
+            return json.dumps({'success': False, 'message': 'Invalid move'})
+
+        # Make the move
+        piece = board[start_row][start_col]
+        board[end_row][end_col] = piece
+        board[start_row][start_col] = '--'
+
+        # Switch turns
+        turn = 'b' if turn == 'w' else 'w'
+
+        # Check for game end
+        check_game_state()
+
+        return json.dumps({
+            'success': True,
+            'board': board,
+            'turn': turn,
+            'game_over': game_over,
+            'winner': winner
+        })
+
+    except Exception as e:
+        return json.dumps({'success': False, 'message': str(e)})
+
+def is_valid_move(start_row, start_col, end_row, end_col):
+    """Basic move validation"""
+    if start_row < 0 or start_row > 7 or start_col < 0 or start_col > 7:
+        return False
+    if end_row < 0 or end_row > 7 or end_col < 0 or end_col > 7:
+        return False
+
+    piece = board[start_row][start_col]
+    if piece == '--':
+        return False
+
+    # Basic piece movement validation (simplified)
+    target = board[end_row][end_col]
+
+    # Can't capture own pieces
+    if piece[0] == target[0] and target != '--':
+        return False
+
+    return True
+
+def check_game_state():
+    """Check if the game has ended"""
+    global game_over, winner
+
+    # Simple check - if king is missing, game over
+    white_king = any('wK' in row for row in board)
+    black_king = any('bK' in row for row in board)
+
+    if not white_king:
+        game_over = True
+        winner = 'black'
+    elif not black_king:
+        game_over = True
+        winner = 'white'
+
+def get_ai_move():
+    """Get a simple AI move"""
+    global turn
+
+    if game_over:
+        return json.dumps({'move': None, 'message': 'Game over'})
+
+    # Simple AI - find a random valid move
+    valid_moves = []
+
+    for start_row in range(8):
+        for start_col in range(8):
+            piece = board[start_row][start_col]
+            if piece != '--' and piece[0] == turn:
+                for end_row in range(8):
+                    for end_col in range(8):
+                        if is_valid_move(start_row, start_col, end_row, end_col):
+                            valid_moves.append((start_row, start_col, end_row, end_col))
+
+    if valid_moves:
+        move = random.choice(valid_moves)
+        result = make_move_python(*move)
+        return result
+    else:
+        return json.dumps({'move': None, 'message': 'No valid moves'})
+
+def reset_game():
+    """Reset the game to initial state"""
+    global board, selected_square, turn, game_over, winner, game_mode
+
+    board = [
+        ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
+        ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
+        ['--', '--', '--', '--', '--', '--', '--', '--'],
+        ['--', '--', '--', '--', '--', '--', '--', '--'],
+        ['--', '--', '--', '--', '--', '--', '--', '--'],
+        ['--', '--', '--', '--', '--', '--', '--', '--'],
+        ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
+        ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
+    ]
+
+    selected_square = None
+    turn = 'w'
+    game_over = False
+    winner = None
+    game_mode = 'playing'
+
+    if console:
+        console.log("Game reset")
+
+# Initialize when module loads
+if is_web:
+    console.log("Chess Web Module Loaded - Simplified Version")
+    init_web_game()
 
 # Screen size for web - will be set dynamically
 WIDTH = 680
