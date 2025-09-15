@@ -11,7 +11,9 @@ from js import document, window, console
 try:
     import pygame.display
     pygame.display.init()
-except:
+except Exception as e:
+    if is_web and console:
+        console.log(f"Pygame display init failed (expected in web): {str(e)}")
     pass
 
 # Global variables for web environment
@@ -34,8 +36,12 @@ def init_web_game():
     global canvas, web_surface, web_clock
 
     try:
-        # Initialize Pygame
-        pygame.init()
+        # Initialize Pygame (skip display for web)
+        if not is_web:
+            pygame.init()
+        else:
+            # Manual initialization for web environment
+            pygame.font.init()
 
         # Set up canvas for web
         canvas = document.getElementById('chess-canvas')
@@ -44,14 +50,17 @@ def init_web_game():
             web_surface = pygame.Surface((canvas.width, canvas.height))
             web_clock = pygame.time.Clock()
 
-            console.log(f"Web game initialized with canvas size: {canvas.width}x{canvas.height}")
+            if console:
+                console.log(f"Web game initialized with canvas size: {canvas.width}x{canvas.height}")
             return True
         else:
-            console.log("Canvas not found!")
+            if console:
+                console.log("Canvas not found!")
             return False
 
     except Exception as e:
-        console.log(f"Failed to initialize web game: {str(e)}")
+        if console:
+            console.log(f"Failed to initialize web game: {str(e)}")
         return False
 
 # Screen size for web - will be set dynamically
