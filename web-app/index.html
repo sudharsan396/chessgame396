@@ -192,11 +192,13 @@
                 console.log('Loading micropip...');
                 await pyodide.loadPackage('micropip');
 
+                console.log('Loading pygame-ce...');
+                await pyodide.loadPackage('pygame-ce');
+
                 console.log('Installing pygame-ce...');
                 await pyodide.runPythonAsync(`
-                    import micropip
-                    await micropip.install('pygame-ce')
-                    print('pygame-ce installed successfully')
+                    import pygame
+                    print('pygame-ce loaded successfully')
                 `);
 
                 console.log('Loading chess game...');
