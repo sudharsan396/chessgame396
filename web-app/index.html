@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chess Master - Web Edition</title>
+    <meta name="description" content="Beautiful chess game with AI opponent - Play online!">
+    <meta name="theme-color" content="#2c3e50">
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Pyodide CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #loading {
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #chess-container {
+            display: none;
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        #chess-canvas {
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            background: #f0d9b5;
+        }
+
+        #status {
+            color: white;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .control-btn:active {
+            transform: translateY(0px);
+        }
+
+        #difficulty-selector {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .difficulty-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .difficulty-btn.selected {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        @media (max-width: 768px) {
+            #chess-container {
+                padding: 10px;
+                margin: 10px;
+            }
+
+            .control-btn {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+
+            #status {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            #chess-container {
+                padding: 5px;
+            }
+
+            .control-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            #status {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>🎯 Loading Chess Master...</div>
+        <div style="font-size: 16px; margin-top: 10px;">Setting up Python environment...</div>
+    </div>
+
+    <div id="chess-container">
+        <canvas id="chess-canvas" width="680" height="700"></canvas>
+        <div id="status">Welcome to Chess Master!</div>
+
+        <div id="difficulty-selector">
+            <button class="difficulty-btn" data-difficulty="easy">🐔 EASY</button>
+            <button class="difficulty-btn" data-difficulty="medium">🦁 MEDIUM</button>
+            <button class="difficulty-btn" data-difficulty="hard">👑 HARD</button>
+        </div>
+
+        <div id="controls">
+            <button class="control-btn" id="new-game">🎮 New Game</button>
+            <button class="control-btn" id="reset">🔄 Reset</button>
+            <button class="control-btn" id="fullscreen">📱 Fullscreen</button>
+        </div>
+    </div>
+
+    <!-- Pyodide and Game Logic -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script>
+        let pyodide = null;
+        let gameRunning = false;
+        let canvas = null;
+        let ctx = null;
+
+        // Initialize Pyodide
+        async function initPyodide() {
+            try {
+                console.log('Loading Pyodide...');
+                pyodide = await loadPyodide({
+                    indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
+                });
+
+                console.log('Installing pygame...');
+                await pyodide.runPythonAsync(`
+                    import micropip
+                    await micropip.install('pygame-ce')
+                `);
+
+                console.log('Loading chess game...');
+                await loadChessGame();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('chess-container').style.display = 'block';
+
+                console.log('Chess Master Web Edition Ready!');
+                updateStatus('Chess Master Ready! Select difficulty and start playing!');
+
+                // Register service worker for PWA
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(function(registration) {
+                            console.log('Service Worker registered successfully');
+                        })
+                        .catch(function(error) {
+                            console.log('Service Worker registration failed:', error);
+                        });
+                }
+
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                updateStatus('❌ Failed to load game. Please refresh and try again.');
+            }
+        }
+
+        async function loadChessGame() {
+            try {
+                // Load the chess game Python code
+                const response = await fetch('./chess_web.py');
+                const pythonCode = await response.text();
+
+                // Execute the Python code
+                await pyodide.runPythonAsync(pythonCode);
+
+                // Initialize the game
+                await pyodide.runPythonAsync('init_web_game()');
+
+                gameRunning = true;
+
+            } catch (error) {
+                console.error('Failed to load chess game:', error);
+                throw error;
+            }
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Difficulty selection
+            document.querySelectorAll('.difficulty-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('selected'));
+                    this.classList.add('selected');
+
+                    const difficulty = this.dataset.difficulty;
+                    if (pyodide && gameRunning) {
+                        pyodide.runPythonAsync(`set_difficulty('${difficulty}')`);
+                        updateStatus(`Difficulty set to ${difficulty.toUpperCase()}!`);
+                    }
+                });
+            });
+
+            // Control buttons
+            document.getElementById('new-game').addEventListener('click', function() {
+                if (pyodide && gameRunning) {
+                    pyodide.runPythonAsync('new_game()');
+                    updateStatus('New game started!');
+                }
+            });
+
+            document.getElementById('reset').addEventListener('click', function() {
+                if (pyodide && gameRunning) {
+                    pyodide.runPythonAsync('reset_game()');
+                    updateStatus('Game reset!');
+                }
+            });
+
+            document.getElementById('fullscreen').addEventListener('click', function() {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen();
+                }
+            });
+
+            // Initialize Pyodide
+            initPyodide();
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (pyodide && gameRunning) {
+                pyodide.runPythonAsync('handle_resize()');
+            }
+        });
+    </script>
+</body>
+</html></content>
+<parameter name="filePath">c:\Users\sudharsan\Desktop\Games\web-app\index.html
