@@ -189,10 +189,14 @@
                     indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
                 });
 
-                console.log('Installing pygame...');
+                console.log('Loading micropip...');
+                await pyodide.loadPackage('micropip');
+
+                console.log('Installing pygame-ce...');
                 await pyodide.runPythonAsync(`
                     import micropip
                     await micropip.install('pygame-ce')
+                    print('pygame-ce installed successfully')
                 `);
 
                 console.log('Loading chess game...');
